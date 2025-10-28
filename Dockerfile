@@ -1,15 +1,12 @@
 # 构建阶段
-FROM golang:1.25-alpine AS builder
+FROM golang:alpine AS builder
 
 WORKDIR /app
-
-RUN apk add --no-cache git ca-certificates
-COPY go.mod go.sum ./
+COPY go.mod ./
 RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -a -installsuffix cgo -o kubewatchtower ./cmd/kubewatchtower
-
 
 FROM alpine:latest
 
