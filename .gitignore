@@ -28,7 +28,7 @@ vendor/
 .DS_Store
 
 # Binary
-kubewatchtower
+./kubewatchtower
 
 # Local config
 .env

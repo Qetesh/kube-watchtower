@@ -6,7 +6,6 @@ COPY go.mod ./
 RUN go mod download
 COPY . .
 
-RUN ls -l
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -a -installsuffix cgo -o kubewatchtower ./cmd/kubewatchtower
 
 FROM alpine:latest
