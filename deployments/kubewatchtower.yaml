@@ -1,0 +1,110 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubewatchtower
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubewatchtower-config
+  namespace: kubewatchtower
+data:
+  check-interval: "5m"
+  cleanup: "true"
+  disable-containers: ""
+  notification-url: ""
+  run-once: "false"
+  # 通知URL（shoutrrr格式）
+  # 示例:
+  # - Slack: slack://token-a/token-b/token-c
+  # - Discord: discord://token@channel
+  # - Telegram: telegram://token@telegram?chats=@channel-1
+  # - Email: smtp://username:password@host:port/?from=sender@example.com&to=recipient@example.com
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubewatchtower
+  namespace: kubewatchtower
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubewatchtower
+rules:
+  # 读取 deployments
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  # 更新 deployments
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["update", "patch"]
+  # 读取和删除 replicasets（用于清理）
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "delete"]
+  # 读取 pods（用于监控）
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubewatchtower
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubewatchtower
+subjects:
+  - kind: ServiceAccount
+    name: kubewatchtower
+    namespace: kubewatchtower
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubewatchtower
+  namespace: kubewatchtower
+  labels:
+    app: kubewatchtower
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubewatchtower
+  template:
+    metadata:
+      labels:
+        app: kubewatchtower
+    spec:
+      serviceAccountName: kubewatchtower
+      containers:
+        - name: kubewatchtower
+          image: kubewatchtower:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: kubewatchtower-config
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
