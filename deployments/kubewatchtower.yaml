@@ -11,11 +11,8 @@ metadata:
   name: kubewatchtower-config
   namespace: kubewatchtower
 data:
-  check-interval: "5m"
-  cleanup: "true"
-  disable-containers: ""
-  notification-url: ""
-  run-once: "false"
+  NOTIFICATION_URL: ""
+  RUN_ONCE: ""
   # 通知URL（shoutrrr格式）
   # 示例:
   # - Slack: slack://token-a/token-b/token-c
@@ -87,7 +84,7 @@ spec:
       serviceAccountName: kubewatchtower
       containers:
         - name: kubewatchtower
-          image: kubewatchtower:latest
+          image: ghcr.io/qetesh/kubewatchtower:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
@@ -99,12 +96,3 @@ spec:
             requests:
               cpu: 100m
               memory: 128Mi
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
-
