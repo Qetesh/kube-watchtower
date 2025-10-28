@@ -1,3 +1,6 @@
+[![KubeWatchtower docker image](https://github.com/Qetesh/KubeWatchtower/actions/workflows/Packages.yml/badge.svg)](https://github.com/Qetesh/KubeWatchtower/actions/workflows/Packages.yml)
+
+
 # KubeWatchtower
 
 KubeWatchtower is a Kubernetes-native image update monitor inspired by Watchtower.
@@ -38,6 +41,7 @@ Environment Variables
 | CLEANUP            | Automatically clean up old resources             | true        | true, false         |
 | DISABLE_CONTAINERS | Comma-separated list of excluded container names | ""          | nginx,redis         |
 | NOTIFICATION_URL   | Notification URL (Shoutrrr format)               | ""          | See below           |
+| NOTIFICATIONS_CLUSTER   | Notification cluster name                        | ""          | cluster1, cluster2 |
 | RUN_ONCE           | Run once and exit (for CronJob use)              | false       | true, false         |
 
 ---
@@ -88,11 +92,12 @@ KubeWatchtower monitors containers in Deployments, DaemonSets, and StatefulSets 
 ### Todo
 
 - [x] Deployments, DaemonSet, StatefulSets
-- [ ] notifier formatter(error log, merge)
-- [ ] cronjob
-- [ ] CLEANUP image
-- [ ] timeout rollout
-
+- [ ] Notifier formatter(Start log, Update log)
+- [ ] CronJob support
+- [ ] Rollout timeout support
+- [ ] Private registry support
+- [ ] Check only mode support
+- [ ] Namespace denylist support
 
 ---
 
