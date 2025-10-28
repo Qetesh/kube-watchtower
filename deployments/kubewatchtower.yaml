@@ -13,12 +13,6 @@ metadata:
 data:
   NOTIFICATION_URL: ""
   RUN_ONCE: ""
-  # 通知URL（shoutrrr格式）
-  # 示例:
-  # - Slack: slack://token-a/token-b/token-c
-  # - Discord: discord://token@channel
-  # - Telegram: telegram://token@telegram?chats=@channel-1
-  # - Email: smtp://username:password@host:port/?from=sender@example.com&to=recipient@example.com
 
 ---
 apiVersion: v1
@@ -33,19 +27,15 @@ kind: ClusterRole
 metadata:
   name: kubewatchtower
 rules:
-  # 读取 deployments
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "watch"]
-  # 更新 deployments
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["update", "patch"]
-  # 读取和删除 replicasets（用于清理）
   - apiGroups: ["apps"]
     resources: ["replicasets"]
     verbs: ["get", "list", "delete"]
-  # 读取 pods（用于监控）
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
