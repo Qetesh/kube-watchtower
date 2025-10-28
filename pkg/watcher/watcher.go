@@ -104,43 +104,43 @@ func calculateNextRun(interval time.Duration) time.Time {
 func (w *Watcher) check(ctx context.Context) error {
 	logger.Debug("Starting image update check...")
 
-	// List all deployments
-	deployments, err := w.k8sClient.ListDeployments(ctx)
+	// List all workloads (Deployments, DaemonSets, StatefulSets)
+	workloads, err := w.k8sClient.ListWorkloads(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list deployments: %w", err)
+		return fmt.Errorf("failed to list workloads: %w", err)
 	}
 
-	logger.Debugf("Found %d deployments to monitor", len(deployments))
+	logger.Debugf("Found %d workloads to monitor", len(workloads))
 
 	updatedCount := 0
 	failedCount := 0
 	scannedCount := 0
 
-	// Check each deployment
-	for _, deploy := range deployments {
-		for _, container := range deploy.Containers {
+	// Check each workload
+	for _, workload := range workloads {
+		for _, container := range workload.Containers {
 			// Check if container is disabled
 			if w.config.IsContainerDisabled(container.Name) {
-				logger.Debugf("Skipping disabled container: %s/%s/%s", deploy.Namespace, deploy.Name, container.Name)
+				logger.Debugf("Skipping disabled container: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
 				continue
 			}
 
 			// Only monitor latest tag
 			if container.Tag != "latest" {
-				logger.Debugf("Skipping non-latest tag: %s/%s/%s (tag: %s)", deploy.Namespace, deploy.Name, container.Name, container.Tag)
+				logger.Debugf("Skipping non-latest tag: %s/%s/%s (tag: %s)", workload.Namespace, workload.Name, container.Name, container.Tag)
 				continue
 			}
 
 			scannedCount++
 
-			logger.Debugf("Checking container: %s/%s/%s", deploy.Namespace, deploy.Name, container.Name)
+			logger.Debugf("Checking container: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
 			logger.Debugf("  Image: %s", container.Image)
 			logger.Debugf("  Current Digest: %s", container.CurrentDigest)
 
 			// Check for updates
 			hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, nil)
 			if err != nil {
-				logger.Errorf("Failed to check image update for %s/%s/%s: %v", deploy.Namespace, deploy.Name, container.Name, err)
+				logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
 				failedCount++
 				continue
 			}
@@ -150,14 +150,14 @@ func (w *Watcher) check(ctx context.Context) error {
 			// If we have current digest, use it for comparison
 			if container.CurrentDigest != "" {
 				if container.CurrentDigest == newDigest {
-					logger.Debugf("No update needed: %s/%s/%s (digest matches)", deploy.Namespace, deploy.Name, container.Name)
+					logger.Debugf("No update needed: %s/%s/%s (digest matches)", workload.Namespace, workload.Name, container.Name)
 					continue
 				}
 				hasUpdate = true
 			}
 
 			if !hasUpdate {
-				logger.Debugf("No update needed: %s/%s/%s", deploy.Namespace, deploy.Name, container.Name)
+				logger.Debugf("No update needed: %s/%s/%s", workload.Namespace, workload.Name, container.Name)
 				continue
 			}
 
@@ -166,16 +166,16 @@ func (w *Watcher) check(ctx context.Context) error {
 			logger.Infof("Found new %s:%s image (%s)", imageInfo.Repository, imageInfo.Tag, newDigest[:12])
 
 			// Perform update
-			if err := w.updateContainer(ctx, deploy, container, newDigest); err != nil {
+			if err := w.updateContainer(ctx, workload, container, newDigest); err != nil {
 				logger.Errorf("Update failed: %v", err)
-				w.notifier.NotifyUpdateFailure(deploy.Namespace, deploy.Name, container.Name, container.Image, err)
+				w.notifier.NotifyUpdateFailure(workload.Namespace, workload.Name, container.Name, container.Image, err)
 				failedCount++
 				continue
 			}
 
 			updatedCount++
-			logger.Debugf("Update successful: %s/%s/%s", deploy.Namespace, deploy.Name, container.Name)
-			w.notifier.NotifyUpdateSuccess(deploy.Namespace, deploy.Name, container.Name, container.Image)
+			logger.Debugf("Update successful: %s/%s/%s", workload.Namespace, workload.Name, container.Name)
+			w.notifier.NotifyUpdateSuccess(workload.Namespace, workload.Name, container.Name, container.Image)
 		}
 	}
 
@@ -193,46 +193,46 @@ func (w *Watcher) check(ctx context.Context) error {
 	return nil
 }
 
-// updateContainer updates a container
-func (w *Watcher) updateContainer(ctx context.Context, deploy k8s.DeploymentInfo, container k8s.ContainerInfo, newDigest string) error {
+// updateContainer updates a container in a workload
+func (w *Watcher) updateContainer(ctx context.Context, workload k8s.WorkloadInfo, container k8s.ContainerInfo, newDigest string) error {
 	// Build new image name
 	imageInfo := registry.ParseImage(container.Image)
 	newImage := fmt.Sprintf("%s:%s@%s", imageInfo.Repository, imageInfo.Tag, newDigest)
 
 	logger.Debugf("Updating image: %s -> %s", container.Image, newImage)
-	w.notifier.NotifyUpdateStarted(deploy.Namespace, deploy.Name, container.Name, container.Image, newImage)
+	w.notifier.NotifyUpdateStarted(workload.Namespace, workload.Name, container.Name, container.Image, newImage)
 
 	// Log stopping container (like watchtower)
-	logger.Infof("Stopping /%s/%s (container: %s) with SIGTERM", deploy.Namespace, deploy.Name, container.Name)
+	logger.Infof("Stopping /%s/%s (container: %s) with SIGTERM", workload.Namespace, workload.Name, container.Name)
 
-	// Update deployment
-	err := w.k8sClient.UpdateDeploymentImage(ctx, deploy.Namespace, deploy.Name, container.Name, newImage)
+	// Update workload
+	err := w.k8sClient.UpdateWorkloadImage(ctx, workload.Type, workload.Namespace, workload.Name, container.Name, newImage)
 	if err != nil {
-		return fmt.Errorf("failed to update deployment: %w", err)
+		return fmt.Errorf("failed to update %s: %w", workload.Type, err)
 	}
 
 	// Log creating container (like watchtower)
-	logger.Infof("Creating /%s/%s", deploy.Namespace, deploy.Name)
+	logger.Infof("Creating /%s/%s", workload.Namespace, workload.Name)
 
 	// Wait for rollout to complete
-	logger.Debugf("Waiting for rollout to complete: %s/%s", deploy.Namespace, deploy.Name)
-	err = w.k8sClient.WaitForRollout(ctx, deploy.Namespace, deploy.Name, 5*time.Minute)
+	logger.Debugf("Waiting for rollout to complete: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
+	err = w.k8sClient.WaitForRollout(ctx, workload.Type, workload.Namespace, workload.Name, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("rollout failed: %w", err)
 	}
 
-	// Cleanup old ReplicaSets
+	// Cleanup old resources
 	if w.config.Cleanup {
-		logger.Debugf("Cleaning up old ReplicaSets: %s/%s", deploy.Namespace, deploy.Name)
+		logger.Debugf("Cleaning up old resources: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
 		// Log removing old resources (like watchtower logs "Removing image")
-		logger.Infof("Removing old resources for %s/%s", deploy.Namespace, deploy.Name)
-		err = w.k8sClient.CleanupOldReplicaSets(ctx, deploy.Namespace, deploy.Name)
+		logger.Infof("Removing old resources for %s/%s", workload.Namespace, workload.Name)
+		err = w.k8sClient.CleanupOldResources(ctx, workload.Type, workload.Namespace, workload.Name)
 		if err != nil {
 			logger.Warnf("Cleanup warning: %v", err)
 		}
 	}
 
-	logger.Debugf("Update completed: %s/%s/%s", deploy.Namespace, deploy.Name, container.Name)
+	logger.Debugf("Update completed: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
 	return nil
 }
 

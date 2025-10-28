@@ -20,6 +20,7 @@ vendor/
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 *~
@@ -28,7 +29,7 @@ vendor/
 .DS_Store
 
 # Binary
-./kubewatchtower
+/kubewatchtower
 
 # Local config
 .env

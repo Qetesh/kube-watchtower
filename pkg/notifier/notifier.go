@@ -102,7 +102,7 @@ func (n *Notifier) NotifyCheckCompleted(updatedCount, totalCount int) {
 	}
 
 	message := fmt.Sprintf(
-		"📊 KubeWatchtower:\n"+
+		"☸️ KubeWatchtower:\n"+
 			"Check Completed\n"+
 			"Updated: %d\n"+
 			"Total: %d",
