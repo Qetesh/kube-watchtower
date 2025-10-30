@@ -1,12 +1,12 @@
-[![KubeWatchtower docker image](https://github.com/Qetesh/KubeWatchtower/actions/workflows/Packages.yml/badge.svg)](https://github.com/Qetesh/KubeWatchtower/actions/workflows/Packages.yml)
+[![kube-watchtower docker image](https://github.com/Qetesh/kube-watchtower/actions/workflows/Packages.yml/badge.svg)](https://github.com/Qetesh/kube-watchtower/actions/workflows/Packages.yml)
 
 
-# KubeWatchtower
+# kube-watchtower
 
-KubeWatchtower is a Kubernetes-native image update monitor inspired by Watchtower.
+kube-watchtower is a Kubernetes-native image update monitor inspired by Watchtower.
 It automatically tracks container image updates within your Kubernetes cluster and safely performs rolling updates when new images are detected.
 
-⚠️ KubeWatchtower is currently in beta and not recommended for production use.
+⚠️ kube-watchtower is currently in beta and not recommended for production use.
 
 ### ✨ Features
 	•	✅ Automatically monitors container image updates in Deployments, DaemonSets, and StatefulSets
@@ -48,7 +48,7 @@ Environment Variables
 
 ### 🔔 Notifications
 
-KubeWatchtower integrates with Shoutrrr to send notifications to various services.
+kube-watchtower integrates with Shoutrrr to send notifications to various services.
 
 Examples
 
@@ -68,7 +68,7 @@ For more services, refer to the official Shoutrrr documentation.
 
 ### 🔍 Monitoring Rules
 
-KubeWatchtower monitors containers in Deployments, DaemonSets, and StatefulSets that meet all the following criteria:
+kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets that meet all the following criteria:
 
 	1.	✅ The container's imagePullPolicy is set to Always
 	2.	✅ The image tag is latest
@@ -76,9 +76,9 @@ KubeWatchtower monitors containers in Deployments, DaemonSets, and StatefulSets 
 
 ---
 
-### 🆚 Comparison: Watchtower vs. KubeWatchtower
+### 🆚 Comparison: Watchtower vs. kube-watchtower
 
-| **Feature**        | **Watchtower** | **KubeWatchtower** |
+| **Feature**        | **Watchtower** | **kube-watchtower** |
 | ------------------ | -------------- | ------------------ |
 | Runtime            | Docker         | Kubernetes         |
 | Update Method      | Container restart | Kubernetes rollout |
@@ -110,7 +110,7 @@ Ensure that imagePullPolicy is set to Always, and the container name is not list
 Q: Can I monitor private registries?
 
 Yes. Make sure your cluster is configured with valid ImagePullSecrets.
-KubeWatchtower automatically uses the Pod’s service account credentials.
+kube-watchtower automatically uses the Pod’s service account credentials.
 
 Q: What happens if an update fails?
 

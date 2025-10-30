@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/containrrr/shoutrrr"
-	"github.com/qetesh/kubewatchtower/pkg/logger"
+	"github.com/qetesh/kube-watchtower/pkg/logger"
 )
 
 // Notifier handles sending notifications
@@ -46,7 +46,7 @@ func (n *Notifier) NotifyUpdateStarted(namespace, deployment, container, oldImag
 	}
 
 	message := fmt.Sprintf(
-		"🔄 KubeWatchtower: Update Started\n"+
+		"🔄 kube-watchtower: Update Started\n"+
 			"Namespace: %s\n"+
 			"Deployment: %s\n"+
 			"Container: %s\n"+
@@ -65,7 +65,7 @@ func (n *Notifier) NotifyUpdateSuccess(namespace, deployment, container, image s
 	}
 
 	message := fmt.Sprintf(
-		"✅ KubeWatchtower: Update Successful\n"+
+		"✅ kube-watchtower: Update Successful\n"+
 			"Namespace: %s\n"+
 			"Deployment: %s\n"+
 			"Container: %s\n"+
@@ -83,7 +83,7 @@ func (n *Notifier) NotifyUpdateFailure(namespace, deployment, container, image s
 	}
 
 	message := fmt.Sprintf(
-		"❌ KubeWatchtower: Update Failed\n"+
+		"❌ kube-watchtower: Update Failed\n"+
 			"Namespace: %s\n"+
 			"Deployment: %s\n"+
 			"Container: %s\n"+
@@ -102,7 +102,7 @@ func (n *Notifier) NotifyCheckCompleted(updatedCount, totalCount int) {
 	}
 
 	message := fmt.Sprintf(
-		"☸️ KubeWatchtower:\n"+
+		"☸️ kube-watchtower:\n"+
 			"Check Completed\n"+
 			"Updated: %d\n"+
 			"Total: %d",

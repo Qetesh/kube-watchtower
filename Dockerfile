@@ -6,13 +6,13 @@ COPY go.mod ./
 RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -a -installsuffix cgo -o kubewatchtower ./cmd/kubewatchtower
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -a -installsuffix cgo -o kube-watchtower ./cmd/kube-watchtower
 
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /root/
-COPY --from=builder /app/kubewatchtower .
+COPY --from=builder /app/kube-watchtower .
 
-ENTRYPOINT ["./kubewatchtower"]
+ENTRYPOINT ["./kube-watchtower"]
 

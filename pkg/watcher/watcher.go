@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/qetesh/kubewatchtower/pkg/config"
-	"github.com/qetesh/kubewatchtower/pkg/k8s"
-	"github.com/qetesh/kubewatchtower/pkg/logger"
-	"github.com/qetesh/kubewatchtower/pkg/notifier"
-	"github.com/qetesh/kubewatchtower/pkg/registry"
+	"github.com/qetesh/kube-watchtower/pkg/config"
+	"github.com/qetesh/kube-watchtower/pkg/k8s"
+	"github.com/qetesh/kube-watchtower/pkg/logger"
+	"github.com/qetesh/kube-watchtower/pkg/notifier"
+	"github.com/qetesh/kube-watchtower/pkg/registry"
 )
 
 // Watcher monitors and updates container images

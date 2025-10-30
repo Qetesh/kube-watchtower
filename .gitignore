@@ -29,7 +29,7 @@ vendor/
 .DS_Store
 
 # Binary
-/kubewatchtower
+/kube-watchtower
 
 # Local config
 .env

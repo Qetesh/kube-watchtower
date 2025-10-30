@@ -1,4 +1,4 @@
-module github.com/qetesh/kubewatchtower
+module github.com/qetesh/kube-watchtower
 
 go 1.24
 

@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/qetesh/kubewatchtower/pkg/logger"
+	"github.com/qetesh/kube-watchtower/pkg/logger"
 )
 
 // ImageChecker checks container image updates

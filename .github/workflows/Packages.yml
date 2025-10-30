@@ -1,4 +1,4 @@
-name: KubeWatchtower docker image
+name: kube-watchtower ci
 
 on:
  release:

@@ -6,9 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/qetesh/kubewatchtower/pkg/config"
-	"github.com/qetesh/kubewatchtower/pkg/logger"
-	"github.com/qetesh/kubewatchtower/pkg/watcher"
+	"github.com/qetesh/kube-watchtower/pkg/config"
+	"github.com/qetesh/kube-watchtower/pkg/logger"
+	"github.com/qetesh/kube-watchtower/pkg/watcher"
 )
 
 const version = "1.0.0"
@@ -24,7 +24,7 @@ func main() {
 	defer logger.Sync()
 
 	// Print version (like watchtower)
-	logger.Infof("KubeWatchtower %s", version)
+	logger.Infof("kube-watchtower %s", version)
 
 	// Debug configuration
 	logger.Debugf("Configuration loaded: Namespace=%s, CheckInterval=%v, Cleanup=%v",
@@ -55,5 +55,5 @@ func main() {
 		logger.Fatalf("Watcher failed: %v", err)
 	}
 
-	logger.Info("KubeWatchtower stopped")
+	logger.Info("kube-watchtower stopped")
 }
