@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qetesh/kubewatchtower/pkg/logger"
+	"github.com/qetesh/kube-watchtower/pkg/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -95,6 +95,10 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
 	for _, deploy := range deployments.Items {
+		// Only process deployments with available replicas
+		if deploy.Status.AvailableReplicas <= 0 {
+			continue
+		}
 		if workload := c.processWorkload(ctx, WorkloadTypeDeployment, deploy.Name, deploy.Namespace, &deploy.Spec.Template.Spec, deploy.Spec.Selector); workload != nil {
 			result = append(result, *workload)
 		}
@@ -106,6 +110,10 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 		return nil, fmt.Errorf("failed to list daemonsets: %w", err)
 	}
 	for _, ds := range daemonsets.Items {
+		// Only process daemonsets with available replicas
+		if ds.Status.NumberAvailable <= 0 {
+			continue
+		}
 		if workload := c.processWorkload(ctx, WorkloadTypeDaemonSet, ds.Name, ds.Namespace, &ds.Spec.Template.Spec, ds.Spec.Selector); workload != nil {
 			result = append(result, *workload)
 		}
@@ -117,6 +125,10 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 		return nil, fmt.Errorf("failed to list statefulsets: %w", err)
 	}
 	for _, sts := range statefulsets.Items {
+		// Only process statefulsets with available replicas
+		if sts.Status.AvailableReplicas <= 0 {
+			continue
+		}
 		if workload := c.processWorkload(ctx, WorkloadTypeStatefulSet, sts.Name, sts.Namespace, &sts.Spec.Template.Spec, sts.Spec.Selector); workload != nil {
 			result = append(result, *workload)
 		}
@@ -244,7 +256,7 @@ func (c *Client) fillCurrentDigestsFromSelector(ctx context.Context, namespace s
 // UpdateWorkloadImage updates workload image
 func (c *Client) UpdateWorkloadImage(ctx context.Context, workloadType WorkloadType, namespace, name, containerName, newImage string) error {
 	annotation := map[string]string{
-		"kubewatchtower.io/updated-at": time.Now().Format(time.RFC3339),
+		"kube-watchtower.io/updated-at": time.Now().Format(time.RFC3339),
 	}
 
 	switch workloadType {
