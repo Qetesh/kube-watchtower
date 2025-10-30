@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/qetesh/kube-watchtower/pkg/config"
@@ -142,8 +143,15 @@ func (w *Watcher) check(ctx context.Context) error {
 			logger.Debugf("  Image: %s", container.Image)
 			logger.Debugf("  Current Digest: %s", container.CurrentDigest)
 
+			// Get registry credentials if imagePullSecrets are defined
+			var credentials *registry.RegistryCredentials
+			if len(workload.ImagePullSecrets) > 0 {
+				logger.Debugf("  ImagePullSecrets found: %v", workload.ImagePullSecrets)
+				credentials = w.getCredentialsForImage(ctx, workload.Namespace, workload.ImagePullSecrets, container.Image)
+			}
+
 			// Check for updates
-			hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, nil)
+			hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, credentials)
 			if err != nil {
 				logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
 				if w.notifier != nil {
@@ -246,6 +254,99 @@ func (w *Watcher) updateContainer(ctx context.Context, workload k8s.WorkloadInfo
 
 	logger.Debugf("Update completed: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
 	return nil
+}
+
+// getCredentialsForImage gets the appropriate registry credentials for an image
+func (w *Watcher) getCredentialsForImage(ctx context.Context, namespace string, secretNames []string, image string) *registry.RegistryCredentials {
+	// Parse image to extract registry
+	imageInfo := registry.ParseImage(image)
+	imageRegistry := extractRegistry(imageInfo.Repository)
+
+	// Try each secret
+	for _, secretName := range secretNames {
+		auths, err := w.k8sClient.GetImagePullSecret(ctx, namespace, secretName)
+		if err != nil {
+			logger.Debugf("Failed to get secret %s: %v", secretName, err)
+			continue
+		}
+
+		// Find matching registry
+		for _, auth := range auths {
+			if matchesRegistry(imageRegistry, auth.Registry) {
+				logger.Debugf("  Found matching credentials for registry: %s", auth.Registry)
+				return &registry.RegistryCredentials{
+					Registry: auth.Registry,
+					Username: auth.Username,
+					Password: auth.Password,
+				}
+			}
+		}
+	}
+
+	logger.Debugf("  No matching credentials found for registry: %s", imageRegistry)
+	return nil
+}
+
+// extractRegistry extracts the registry host from a repository string
+func extractRegistry(repository string) string {
+	// Docker Hub images don't have registry prefix
+	if !strings.Contains(repository, "/") {
+		return "index.docker.io"
+	}
+
+	// If the first part contains a dot or colon, it's likely a registry
+	parts := strings.SplitN(repository, "/", 2)
+	if strings.Contains(parts[0], ".") || strings.Contains(parts[0], ":") {
+		return parts[0]
+	}
+
+	// Otherwise, it's Docker Hub (e.g., library/nginx)
+	return "index.docker.io"
+}
+
+// matchesRegistry checks if image registry matches secret registry
+func matchesRegistry(imageRegistry, secretRegistry string) bool {
+	// Normalize registries
+	imageRegistry = normalizeRegistry(imageRegistry)
+	secretRegistry = normalizeRegistry(secretRegistry)
+
+	// Direct match
+	if imageRegistry == secretRegistry {
+		return true
+	}
+
+	// Docker Hub special cases
+	dockerHubRegistries := []string{
+		"index.docker.io",
+		"docker.io",
+		"registry-1.docker.io",
+		"registry.hub.docker.com",
+	}
+
+	imageIsDockerHub := contains(dockerHubRegistries, imageRegistry)
+	secretIsDockerHub := contains(dockerHubRegistries, secretRegistry)
+
+	return imageIsDockerHub && secretIsDockerHub
+}
+
+// normalizeRegistry normalizes a registry URL
+func normalizeRegistry(registry string) string {
+	// Remove https:// or http:// prefix
+	registry = strings.TrimPrefix(registry, "https://")
+	registry = strings.TrimPrefix(registry, "http://")
+	// Remove trailing slash
+	registry = strings.TrimSuffix(registry, "/")
+	return strings.ToLower(registry)
+}
+
+// contains checks if a string is in a slice
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 // Close closes the watcher

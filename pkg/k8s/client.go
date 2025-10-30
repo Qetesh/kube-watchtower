@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -65,10 +67,11 @@ const (
 
 // WorkloadInfo contains workload information
 type WorkloadInfo struct {
-	Type       WorkloadType
-	Name       string
-	Namespace  string
-	Containers []ContainerInfo
+	Type             WorkloadType
+	Name             string
+	Namespace        string
+	Containers       []ContainerInfo
+	ImagePullSecrets []string // Names of image pull secrets
 }
 
 // ContainerInfo contains container information
@@ -166,11 +169,18 @@ func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType,
 		logger.Debugf("Warning: unable to get current digest for %s/%s: %v", namespace, name, err)
 	}
 
+	// Extract ImagePullSecrets
+	imagePullSecrets := make([]string, 0, len(podSpec.ImagePullSecrets))
+	for _, secret := range podSpec.ImagePullSecrets {
+		imagePullSecrets = append(imagePullSecrets, secret.Name)
+	}
+
 	return &WorkloadInfo{
-		Type:       workloadType,
-		Name:       name,
-		Namespace:  namespace,
-		Containers: containers,
+		Type:             workloadType,
+		Name:             name,
+		Namespace:        namespace,
+		Containers:       containers,
+		ImagePullSecrets: imagePullSecrets,
 	}
 }
 
@@ -515,4 +525,76 @@ func getOwnerName(ownerRefs []metav1.OwnerReference) string {
 // CleanupOldReplicaSets cleans up old ReplicaSets (deprecated, use CleanupOldResources)
 func (c *Client) CleanupOldReplicaSets(ctx context.Context, namespace, deploymentName string) error {
 	return c.CleanupOldResources(ctx, WorkloadTypeDeployment, namespace, deploymentName)
+}
+
+// DockerConfigJSON represents the structure of .dockerconfigjson
+type DockerConfigJSON struct {
+	Auths map[string]DockerAuthConfig `json:"auths"`
+}
+
+// DockerAuthConfig represents authentication configuration for a registry
+type DockerAuthConfig struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Auth     string `json:"auth"`
+}
+
+// RegistryAuth contains registry authentication information
+type RegistryAuth struct {
+	Registry string
+	Username string
+	Password string
+}
+
+// GetImagePullSecret retrieves and parses an image pull secret
+func (c *Client) GetImagePullSecret(ctx context.Context, namespace, secretName string) ([]RegistryAuth, error) {
+	secret, err := c.clientset.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret: %w", err)
+	}
+
+	// Check if this is a docker config secret
+	if secret.Type != corev1.SecretTypeDockerConfigJson {
+		return nil, fmt.Errorf("secret %s is not a docker config secret (type: %s)", secretName, secret.Type)
+	}
+
+	// Parse .dockerconfigjson
+	dockerConfigData, ok := secret.Data[corev1.DockerConfigJsonKey]
+	if !ok {
+		return nil, fmt.Errorf("secret %s does not contain .dockerconfigjson", secretName)
+	}
+
+	var dockerConfig DockerConfigJSON
+	if err := json.Unmarshal(dockerConfigData, &dockerConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse docker config: %w", err)
+	}
+
+	// Extract auth information
+	var auths []RegistryAuth
+	for registry, authConfig := range dockerConfig.Auths {
+		username := authConfig.Username
+		password := authConfig.Password
+
+		// If auth field is present but username/password are not, decode auth
+		if authConfig.Auth != "" && (username == "" || password == "") {
+			decoded, err := base64.StdEncoding.DecodeString(authConfig.Auth)
+			if err != nil {
+				logger.Warnf("Failed to decode auth for registry %s: %v", registry, err)
+				continue
+			}
+			parts := strings.SplitN(string(decoded), ":", 2)
+			if len(parts) == 2 {
+				username = parts[0]
+				password = parts[1]
+			}
+		}
+
+		auths = append(auths, RegistryAuth{
+			Registry: registry,
+			Username: username,
+			Password: password,
+		})
+	}
+
+	return auths, nil
 }

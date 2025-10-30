@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/qetesh/kube-watchtower/pkg/logger"
@@ -59,13 +59,20 @@ func ParseImage(image string) *ImageInfo {
 	return info
 }
 
+// RegistryCredentials contains registry authentication credentials
+type RegistryCredentials struct {
+	Registry string
+	Username string
+	Password string
+}
+
 // CheckForUpdate checks if image has an update
 // Returns: hasUpdate (whether there is an update), remoteDigest (remote image digest), error
-func (ic *ImageChecker) CheckForUpdate(ctx context.Context, currentImage string, authConfig *registry.AuthConfig) (bool, string, error) {
+func (ic *ImageChecker) CheckForUpdate(ctx context.Context, currentImage string, credentials *RegistryCredentials) (bool, string, error) {
 	imageInfo := ParseImage(currentImage)
 
 	// Get remote image digest
-	remoteDigest, err := ic.getRemoteDigest(ctx, imageInfo, authConfig)
+	remoteDigest, err := ic.getRemoteDigest(ctx, imageInfo, credentials)
 	if err != nil {
 		return false, "", fmt.Errorf("failed to get remote digest: %w", err)
 	}
@@ -76,7 +83,7 @@ func (ic *ImageChecker) CheckForUpdate(ctx context.Context, currentImage string,
 }
 
 // getRemoteDigest gets remote image digest
-func (ic *ImageChecker) getRemoteDigest(ctx context.Context, imageInfo *ImageInfo, authConfig *registry.AuthConfig) (string, error) {
+func (ic *ImageChecker) getRemoteDigest(ctx context.Context, imageInfo *ImageInfo, credentials *RegistryCredentials) (string, error) {
 	imageName := fmt.Sprintf("%s:%s", imageInfo.Repository, imageInfo.Tag)
 
 	ref, err := name.ParseReference(imageName)
@@ -84,8 +91,26 @@ func (ic *ImageChecker) getRemoteDigest(ctx context.Context, imageInfo *ImageInf
 		logger.Fatalf("Failed to parse image name: %v", err)
 	}
 
+	// Prepare authentication options
+	options := []remote.Option{
+		remote.WithContext(ctx),
+	}
+
+	// Add authentication if credentials are provided
+	if credentials != nil && credentials.Username != "" {
+		auth := &authn.Basic{
+			Username: credentials.Username,
+			Password: credentials.Password,
+		}
+		options = append(options, remote.WithAuth(auth))
+		logger.Debugf("Using credentials for registry: %s", credentials.Registry)
+	} else {
+		// Use default keychain (can read from ~/.docker/config.json)
+		options = append(options, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	}
+
 	// Check distribution
-	desc, err := remote.Get(ref)
+	desc, err := remote.Get(ref, options...)
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect distribution: %w", err)
 	}
