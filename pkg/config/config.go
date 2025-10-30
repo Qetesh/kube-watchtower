@@ -20,6 +20,9 @@ type Config struct {
 	// Notification URL (shoutrrr format)
 	NotificationURL string
 
+	// Notification cluster name
+	NotificationCluster string
+
 	// Check interval (used when Schedule is not specified)
 	CheckInterval time.Duration
 
@@ -34,13 +37,14 @@ type Config struct {
 // LoadConfig loads configuration from environment variables
 func LoadConfig() *Config {
 	config := &Config{
-		LogLevel:        getEnv("LOG_LEVEL", "info"),
-		Schedule:        getEnv("SCHEDULE", ""),
-		Cleanup:         getEnvBool("CLEANUP", true),
-		NotificationURL: getEnv("NOTIFICATION_URL", ""),
-		CheckInterval:   getEnvDuration("CHECK_INTERVAL", 5*time.Minute),
-		Namespace:       getEnv("NAMESPACE", ""),
-		RunOnce:         getEnvBool("RUN_ONCE", false),
+		LogLevel:            getEnv("LOG_LEVEL", "info"),
+		Schedule:            getEnv("SCHEDULE", ""),
+		Cleanup:             getEnvBool("CLEANUP", true),
+		NotificationURL:     getEnv("NOTIFICATION_URL", ""),
+		NotificationCluster: getEnv("NOTIFICATION_CLUSTER", "kubernetes"),
+		CheckInterval:       getEnvDuration("CHECK_INTERVAL", 5*time.Minute),
+		Namespace:           getEnv("NAMESPACE", ""),
+		RunOnce:             getEnvBool("RUN_ONCE", false),
 	}
 
 	// Parse disabled containers list

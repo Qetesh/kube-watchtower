@@ -92,10 +92,10 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 ### Todo
 
 - [x] Deployments, DaemonSet, StatefulSets
-- [ ] Notifier formatter(Start log, Update log)
-- [ ] CronJob support
+- [x] Notifier formatter(Start log, Update log)
+- [x] CronJob support
 - [ ] Rollout timeout support
-- [ ] Private registry support
+- [ ] Private registry support via ImagePullSecrets
 - [ ] Check only mode support
 - [ ] Namespace denylist support
 

@@ -32,7 +32,7 @@ func NewWatcher(cfg *config.Config) (*Watcher, error) {
 		return nil, fmt.Errorf("failed to create image checker: %w", err)
 	}
 
-	notif := notifier.NewNotifier(cfg.NotificationURL)
+	notif := notifier.NewNotifier(cfg.NotificationURL, cfg.NotificationCluster)
 
 	return &Watcher{
 		config:       cfg,
@@ -104,6 +104,11 @@ func calculateNextRun(interval time.Duration) time.Time {
 func (w *Watcher) check(ctx context.Context) error {
 	logger.Debug("Starting image update check...")
 
+	// Reset notifier results for this check cycle
+	if w.notifier != nil {
+		w.notifier.Reset()
+	}
+
 	// List all workloads (Deployments, DaemonSets, StatefulSets)
 	workloads, err := w.k8sClient.ListWorkloads(ctx)
 	if err != nil {
@@ -141,6 +146,9 @@ func (w *Watcher) check(ctx context.Context) error {
 			hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, nil)
 			if err != nil {
 				logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
+				if w.notifier != nil {
+					w.notifier.AddResult(container.Image, false, err)
+				}
 				failedCount++
 				continue
 			}
@@ -168,14 +176,18 @@ func (w *Watcher) check(ctx context.Context) error {
 			// Perform update
 			if err := w.updateContainer(ctx, workload, container, newDigest); err != nil {
 				logger.Errorf("Update failed: %v", err)
-				w.notifier.NotifyUpdateFailure(workload.Namespace, workload.Name, container.Name, container.Image, err)
+				if w.notifier != nil {
+					w.notifier.AddResult(container.Image, false, err)
+				}
 				failedCount++
 				continue
 			}
 
 			updatedCount++
 			logger.Debugf("Update successful: %s/%s/%s", workload.Namespace, workload.Name, container.Name)
-			w.notifier.NotifyUpdateSuccess(workload.Namespace, workload.Name, container.Name, container.Image)
+			if w.notifier != nil {
+				w.notifier.AddResult(container.Image, true, nil)
+			}
 		}
 	}
 
@@ -186,8 +198,9 @@ func (w *Watcher) check(ctx context.Context) error {
 	}
 	logger.Infof("Session done Failed=%d Scanned=%d Updated=%d notify=%s", failedCount, scannedCount, updatedCount, notifyStatus)
 
+	// Send summary notification
 	if w.notifier != nil {
-		w.notifier.NotifyCheckCompleted(updatedCount, scannedCount)
+		w.notifier.SendSummary(scannedCount)
 	}
 
 	return nil
@@ -200,7 +213,6 @@ func (w *Watcher) updateContainer(ctx context.Context, workload k8s.WorkloadInfo
 	newImage := fmt.Sprintf("%s:%s@%s", imageInfo.Repository, imageInfo.Tag, newDigest)
 
 	logger.Debugf("Updating image: %s -> %s", container.Image, newImage)
-	w.notifier.NotifyUpdateStarted(workload.Namespace, workload.Name, container.Name, container.Image, newImage)
 
 	// Log stopping container (like watchtower)
 	logger.Infof("Stopping /%s/%s (container: %s) with SIGTERM", workload.Namespace, workload.Name, container.Name)
