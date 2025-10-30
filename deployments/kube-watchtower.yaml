@@ -2,14 +2,14 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: kubewatchtower
+  name: kube-watchtower
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kubewatchtower-config
-  namespace: kubewatchtower
+  name: kube-watchtower-config
+  namespace: kube-watchtower
 data:
   NOTIFICATION_URL: ""
   RUN_ONCE: ""
@@ -18,23 +18,23 @@ data:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kubewatchtower
-  namespace: kubewatchtower
+  name: kube-watchtower
+  namespace: kube-watchtower
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: kubewatchtower
+  name: kube-watchtower
 rules:
   - apiGroups: ["apps"]
-    resources: ["deployments"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["apps"]
-    resources: ["deployments"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
     verbs: ["update", "patch"]
   - apiGroups: ["apps"]
-    resources: ["replicasets"]
+    resources: ["replicasets", "daemonsets"]
     verbs: ["get", "list", "delete"]
   - apiGroups: [""]
     resources: ["pods"]
@@ -43,42 +43,42 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: kubewatchtower
+  name: kube-watchtower
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: kubewatchtower
+  name: kube-watchtower
 subjects:
   - kind: ServiceAccount
-    name: kubewatchtower
-    namespace: kubewatchtower
+    name: kube-watchtower
+    namespace: kube-watchtower
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kubewatchtower
-  namespace: kubewatchtower
+  name: kube-watchtower
+  namespace: kube-watchtower
   labels:
-    app: kubewatchtower
+    app: kube-watchtower
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kubewatchtower
+      app: kube-watchtower
   template:
     metadata:
       labels:
-        app: kubewatchtower
+        app: kube-watchtower
     spec:
-      serviceAccountName: kubewatchtower
+      serviceAccountName: kube-watchtower
       containers:
-        - name: kubewatchtower
-          image: ghcr.io/qetesh/kubewatchtower:latest
+        - name: kube-watchtower
+          image: ghcr.io/qetesh/kube-watchtower:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
-                name: kubewatchtower-config
+                name: kube-watchtower-config
           resources:
             limits:
               cpu: 200m
