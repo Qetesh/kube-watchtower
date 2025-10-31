@@ -27,8 +27,8 @@ func main() {
 	logger.Infof("kube-watchtower %s", version)
 
 	// Debug configuration
-	logger.Debugf("Configuration loaded: Namespace=%s, CheckInterval=%v, Cleanup=%v",
-		cfg.Namespace, cfg.CheckInterval, cfg.Cleanup)
+	logger.Debugf("Configuration loaded: Namespace=%s, Cleanup=%v",
+		cfg.Namespace, cfg.Cleanup)
 
 	// Create watcher
 	w, err := watcher.NewWatcher(cfg)

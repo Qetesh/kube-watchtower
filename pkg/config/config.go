@@ -8,8 +8,6 @@ import (
 
 // Config stores application configuration
 type Config struct {
-	// Schedule in cron format
-	Schedule string
 
 	// Enable cleanup of old resources
 	Cleanup bool
@@ -23,9 +21,6 @@ type Config struct {
 	// Notification cluster name
 	NotificationCluster string
 
-	// Check interval (used when Schedule is not specified)
-	CheckInterval time.Duration
-
 	// Kubernetes namespace (empty means all namespaces)
 	Namespace string
 
@@ -38,13 +33,11 @@ type Config struct {
 func LoadConfig() *Config {
 	config := &Config{
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
-		Schedule:            getEnv("SCHEDULE", ""),
 		Cleanup:             getEnvBool("CLEANUP", true),
 		NotificationURL:     getEnv("NOTIFICATION_URL", ""),
 		NotificationCluster: getEnv("NOTIFICATION_CLUSTER", "kubernetes"),
-		CheckInterval:       getEnvDuration("CHECK_INTERVAL", 5*time.Minute),
 		Namespace:           getEnv("NAMESPACE", ""),
-		RunOnce:             getEnvBool("RUN_ONCE", false),
+		RunOnce:             getEnvBool("RUN_ONCE", true),
 	}
 
 	// Parse disabled containers list

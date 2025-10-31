@@ -45,50 +45,18 @@ func NewWatcher(cfg *config.Config) (*Watcher, error) {
 
 // Run runs the watcher
 func (w *Watcher) Run(ctx context.Context) error {
-	logger.Info("Checking all containers (except explicitly disabled with label)")
-
-	// Schedule first run
-	if !w.config.RunOnce {
-		nextRun := calculateNextRun(w.config.CheckInterval)
-		logger.Infof("Scheduling first run: %s", nextRun.Format("2006-01-02 15:04:05 MST"))
-
-		duration := time.Until(nextRun)
-		hours := int(duration.Hours())
-		minutes := int(duration.Minutes()) % 60
-		seconds := int(duration.Seconds()) % 60
-		logger.Infof("Note that the first check will be performed in %d hours, %d minutes, %d seconds", hours, minutes, seconds)
-
-		// Wait until first run
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(duration):
-		}
-	}
+	logger.Info("Checking all containers (except explicitly disabled with namespace)")
 
 	// Run initial check
 	if err := w.check(ctx); err != nil {
 		logger.Errorf("Initial check failed: %v", err)
 	}
 
-	if w.config.RunOnce {
-		logger.Debug("Run once mode, exiting")
-		return nil
-	}
-
-	// Use ticker for continuous checking
-	ticker := time.NewTicker(w.config.CheckInterval)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Debug("Received shutdown signal, stopping watcher")
 			return ctx.Err()
-		case <-ticker.C:
-			if err := w.check(ctx); err != nil {
-				logger.Errorf("Check failed: %v", err)
-			}
 		}
 	}
 }
@@ -128,12 +96,6 @@ func (w *Watcher) check(ctx context.Context) error {
 			// Check if container is disabled
 			if w.config.IsContainerDisabled(container.Name) {
 				logger.Debugf("Skipping disabled container: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
-				continue
-			}
-
-			// Only monitor latest tag
-			if container.Tag != "latest" {
-				logger.Debugf("Skipping non-latest tag: %s/%s/%s (tag: %s)", workload.Namespace, workload.Name, container.Name, container.Tag)
 				continue
 			}
 
