@@ -7,13 +7,6 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goarch: amd64
-            goos: linux
-          - goarch: arm64
-            goos: linux
 
     permissions:
         packages: write
@@ -31,10 +24,12 @@ jobs:
       - name: Build
         run: |
             go mod download
-            go build -ldflags="-s -w -X main.version=${{ steps.latest_release.outputs.result }}" -o kube-watchtower_${{ matrix.goos }}_${{ matrix.goarch }} ./cmd/kube-watchtower
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ github.event.release.tag_name }}" -o \
+              kube-watchtower_amd64 ./cmd/kube-watchtower
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ github.event.release.tag_name }}" -o \
+              kube-watchtower_arm64 ./cmd/kube-watchtower
+            ls -la
+            pwd
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -63,6 +58,7 @@ jobs:
         id: push
         uses: docker/build-push-action@v6
         with:
+          context: .
           platforms: linux/arm64,linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
