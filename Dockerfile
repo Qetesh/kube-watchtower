@@ -14,5 +14,8 @@ RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /root/
 COPY --from=builder /app/kube-watchtower .
 
+ARG RELEASE_TAG
+ENV RELEASE_TAG=${RELEASE_TAG}
+
 ENTRYPOINT ["./kube-watchtower"]
 
