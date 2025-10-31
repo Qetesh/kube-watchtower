@@ -11,6 +11,8 @@ import (
 	"github.com/qetesh/kube-watchtower/pkg/watcher"
 )
 
+var version = "dev"
+
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
@@ -22,7 +24,7 @@ func main() {
 	defer logger.Sync()
 
 	// Print version (like watchtower)
-	logger.Infof("kube-watchtower %s", os.Getenv("RELEASE_TAG"))
+	logger.Infof("kube-watchtower %s", version)
 
 	// Debug configuration
 	logger.Debugf("Configuration loaded: Namespace=%s, CheckInterval=%v, Cleanup=%v",
