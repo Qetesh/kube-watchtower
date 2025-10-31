@@ -11,7 +11,7 @@ It automatically tracks container image updates within your Kubernetes cluster a
 ### ✨ Features
 	•	✅ Automatically monitors container image updates in Deployments, DaemonSets, and StatefulSets
 	•	✅ Detects containers with imagePullPolicy: Always
-	•	✅ Only updates images tagged as latest (prevents unwanted fixed-version updates)
+	•	✅ Supports all image tags (latest, stable, version tags, etc.)
 	•	✅ Accurate digest tracking — reads the currently running image digest directly from Pods
 	•	✅ Uses Docker Registry API to check for updates
 	•	✅ Safely performs Kubernetes rollouts when new digests are available
@@ -71,8 +71,7 @@ For more services, refer to the official Shoutrrr documentation.
 kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets that meet all the following criteria:
 
 	1.	✅ The container's imagePullPolicy is set to Always
-	2.	✅ The image tag is latest
-	3.	✅ The container is not listed in DISABLE_CONTAINERS
+	2.	✅ The container is not listed in DISABLE_CONTAINERS
 
 ---
 
@@ -94,10 +93,10 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 - [x] Deployments, DaemonSet, StatefulSets
 - [x] Notifier formatter(Start log, Update log)
 - [x] CronJob support
-- [ ] Rollout timeout support
 - [x] Private registry support via ImagePullSecrets
-- [ ] Check only mode support
 - [ ] Namespace denylist support
+- [ ] Rollout timeout support
+- [ ] Check only mode support
 
 ---
 

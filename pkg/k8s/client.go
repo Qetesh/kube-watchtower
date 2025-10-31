@@ -142,14 +142,11 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 
 // processWorkload processes a workload and extracts container information
 func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType, name, namespace string, podSpec *corev1.PodSpec, selector *metav1.LabelSelector) *WorkloadInfo {
-	// Extract containers with Always pull policy and latest tag
+	// Extract containers with Always pull policy
 	var containers []ContainerInfo
 	for _, container := range podSpec.Containers {
 		if container.ImagePullPolicy == corev1.PullAlways {
 			tag := extractImageTag(container.Image)
-			if tag != "latest" {
-				continue
-			}
 
 			containers = append(containers, ContainerInfo{
 				Name:            container.Name,
