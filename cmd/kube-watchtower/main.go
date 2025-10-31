@@ -23,7 +23,7 @@ func main() {
 	}
 	defer logger.Sync()
 
-	// Print version (like watchtower)
+	// Print version
 	logger.Infof("kube-watchtower %s", version)
 
 	// Debug configuration

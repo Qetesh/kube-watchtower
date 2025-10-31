@@ -52,21 +52,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 		logger.Errorf("Initial check failed: %v", err)
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Debug("Received shutdown signal, stopping watcher")
-			return ctx.Err()
-		}
-	}
-}
-
-// calculateNextRun calculates the next run time
-func calculateNextRun(interval time.Duration) time.Time {
-	now := time.Now()
-	// Round to next midnight
-	midnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
-	return midnight
+	return nil
 }
 
 // check performs one check cycle

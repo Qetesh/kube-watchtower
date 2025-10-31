@@ -24,8 +24,6 @@ type Config struct {
 	// Kubernetes namespace (empty means all namespaces)
 	Namespace string
 
-	// Run once and exit
-	RunOnce  bool
 	LogLevel string
 }
 
@@ -37,7 +35,6 @@ func LoadConfig() *Config {
 		NotificationURL:     getEnv("NOTIFICATION_URL", ""),
 		NotificationCluster: getEnv("NOTIFICATION_CLUSTER", "kubernetes"),
 		Namespace:           getEnv("NAMESPACE", ""),
-		RunOnce:             getEnvBool("RUN_ONCE", true),
 	}
 
 	// Parse disabled containers list
