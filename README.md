@@ -16,9 +16,8 @@ It automatically tracks container image updates within your Kubernetes cluster a
 	•	✅ Uses Docker Registry API to check for updates
 	•	✅ Safely performs Kubernetes rollouts when new digests are available
 	•	✅ Supports notifications via Shoutrrr
-	•	✅ Container blacklist support
-	•	✅ Automatically cleans up old resources (ReplicaSets for Deployments, ControllerRevisions for DaemonSets/StatefulSets)
-	•	✅ Supports scheduled and continuous operation modes
+	•	✅ Namespace denylist support
+	•	✅ Supports scheduled via CronJob
 
 ---
 
@@ -36,33 +35,16 @@ Environment Variables
 
 | **Variable**       | **Description**                                  | **Default** | **Example**         |
 | ------------------ | ------------------------------------------------ | ----------- | ------------------- |
-| CHECK_INTERVAL     | Interval between update checks                   | 5m          | 10m, 1h             |
 | NAMESPACE          | Namespace to monitor (empty = all)               | ""          | default, production |
-| CLEANUP            | Automatically clean up old resources             | true        | true, false         |
 | DISABLE_CONTAINERS | Comma-separated list of excluded container names | ""          | nginx,redis         |
 | NOTIFICATION_URL   | Notification URL (Shoutrrr format)               | ""          | See below           |
 | NOTIFICATIONS_CLUSTER   | Notification cluster name                        | ""          | cluster1, cluster2 |
-| RUN_ONCE           | Run once and exit (for CronJob use)              | false       | true, false         |
 
 ---
 
 ### 🔔 Notifications
 
-kube-watchtower integrates with Shoutrrr to send notifications to various services.
-
-Examples
-
-Slack `NOTIFICATION_URL=slack://token-a/token-b/token-c`
-
-Discord `NOTIFICATION_URL=discord://token@channel-id`
-
-Telegram `NOTIFICATION_URL=telegram://token@telegram?chats=@channel-1`
-
-Email (SMTP) `NOTIFICATION_URL=smtp://username:password@smtp.example.com:587/?from=sender@example.com&to=recipient@example.com`
-
-WeChat Work `NOTIFICATION_URL=wechatwork://corpid@token`
-
-For more services, refer to the official Shoutrrr documentation.
+kube-watchtower integrates with [Shoutrrr](https://containrrr.dev/shoutrrr/) to send notifications to various services.
 
 ---
 
@@ -71,7 +53,7 @@ For more services, refer to the official Shoutrrr documentation.
 kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets that meet all the following criteria:
 
 	1.	✅ The container's imagePullPolicy is set to Always
-	2.	✅ The container is not listed in DISABLE_CONTAINERS
+	2.	✅ The container is not listed in DISABLE_NAMESPACE
 
 ---
 

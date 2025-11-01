@@ -12,7 +12,7 @@ metadata:
   namespace: kube-watchtower
 data:
   NOTIFICATION_URL: ""
-  RUN_ONCE: "true"
+  NOTIFICATION_CLUSTER: ""
   TZ: "Asia/Shanghai"
   LOG_LEVEL: "info"
 
