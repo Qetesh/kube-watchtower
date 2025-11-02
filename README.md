@@ -59,6 +59,7 @@ kube-watchtower integrates with [Shoutrrr](https://containrrr.dev/shoutrrr/) to 
 kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets that meet all the following criteria:
 
 - ✅ The container's imagePullPolicy is set to Always
+- ✅ The container has available replicas
 - ✅ The namespace is not listed in DISABLE_NAMESPACES
 - ✅ ImagePullSecret is set up for the private Docker registry
 
