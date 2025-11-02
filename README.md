@@ -9,24 +9,30 @@ It automatically tracks container image updates within your Kubernetes cluster a
 ⚠️ kube-watchtower is currently in beta and not recommended for production use.
 
 ### ✨ Features
-- ✅ Automatically monitors container image updates in Deployments, DaemonSets, and StatefulSets
-- ✅ Detects containers with imagePullPolicy: Always
-- ✅ Supports all image tags (latest, stable, version tags, etc.)
-- ✅ Accurate digest tracking — reads the currently running image digest directly from Pods
-- ✅ Uses Docker Registry API to check for updates
-- ✅ Safely performs Kubernetes rollouts when new digests are available
-- ✅ Supports notifications via Shoutrrr
-- ✅ Namespace denylist support
-- ✅ Supports scheduled via CronJob
+- Monitors image updates in Deployments, DaemonSets, and StatefulSets
+- Detects changes across all tags and private registries
+- Performs safe, automated rolling updates on new image digests
+- Supports notifications through Shoutrrr
+- Optional CronJob scheduling and namespace denylist
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- A running Kubernetes cluster
-- Proper RBAC permissions for Deployment, DaemonSet, StatefulSet, and Pod management
+### Deployment
+- Apply the provided [kube-watchtower.yaml](./deployments/kube-watchtower.yaml) to your cluster.
+- Configure settings via the kube-watchtower-config ConfigMap.
+- After deployment, a CronJob named kube-watchtower will be created automatically.
+- Adjust the update schedule in the CronJob's schedule field.
 
+#### To run the CronJob immediately, manually trigger the CronJob
+```bash
+kubectl create job --from=cronjob/kube-watchtower kube-watchtower-manual-$(date +%s) -n kube-watchtower
+```
+
+#### For Cron syntax details, refer to:
+- [Kubernetes CronJob schedule](https://kubernetes.io/zh-cn/docs/concepts/workloads/controllers/cron-jobs/)
+- [crontab.guru](https://crontab.guru)
 ---
 
 ### ⚙️ Configuration
@@ -54,19 +60,7 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 
 - ✅ The container's imagePullPolicy is set to Always
 - ✅ The namespace is not listed in DISABLE_NAMESPACES
-
----
-
-### 🆚 Comparison: Watchtower vs. kube-watchtower
-
-| **Feature**        | **Watchtower** | **kube-watchtower** |
-| ------------------ | -------------- | ------------------ |
-| Runtime            | Docker         | Kubernetes         |
-| Update Method      | Container restart | Kubernetes rollout |
-| Configuration      | Container labels | Environment variables + RBAC |
-| Image Check        | Docker API      | Docker Registry API |
-| High Availability | Single instance | Managed by Kubernetes |
-
+- ✅ ImagePullSecret is set up for the private Docker registry
 
 ---
 

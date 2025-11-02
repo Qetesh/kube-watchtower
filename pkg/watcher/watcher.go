@@ -45,8 +45,6 @@ func NewWatcher(cfg *config.Config) (*Watcher, error) {
 
 // Run runs the watcher
 func (w *Watcher) Run(ctx context.Context) error {
-	logger.Info("Checking all containers (except explicitly disabled with namespace)")
-
 	// Run initial check
 	if err := w.check(ctx); err != nil {
 		logger.Errorf("Initial check failed: %v", err)

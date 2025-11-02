@@ -27,7 +27,7 @@ func main() {
 	logger.Infof("kube-watchtower %s", version)
 
 	// Debug configuration
-	logger.Debugf("Configuration loaded: DisableNamespaces=%v",
+	logger.Infof("Configuration loaded: DisableNamespaces=%v",
 		cfg.DisableNamespaces)
 
 	// Create watcher
