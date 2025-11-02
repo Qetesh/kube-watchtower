@@ -20,7 +20,7 @@ It automatically tracks container image updates within your Kubernetes cluster a
 ## 🚀 Getting Started
 
 ### Deployment
-- Apply the provided [kube-watchtower.yaml](./CronJob/kube-watchtower.yaml) to your cluster.
+- Apply the provided [kube-watchtower.yaml](./CronJob/kube-watchtower.yaml) to your Kubernetes cluster.
 - Configure settings via the kube-watchtower-config ConfigMap.
 - After deployment, a CronJob named kube-watchtower will be created automatically.
 - Adjust the update schedule in the CronJob's schedule field.
