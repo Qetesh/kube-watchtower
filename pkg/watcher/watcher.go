@@ -141,11 +141,7 @@ func (w *Watcher) check(ctx context.Context) error {
 	}
 
 	// Session done (like watchtower)
-	notifyStatus := "no"
-	if w.notifier != nil {
-		notifyStatus = "yes"
-	}
-	logger.Infof("Session done Failed=%d Scanned=%d Updated=%d notify=%s", failedCount, scannedCount, updatedCount, notifyStatus)
+	logger.Infof("Session done Scanned=%d Updated=%d Failed=%d", scannedCount, updatedCount, failedCount)
 
 	// Send summary notification
 	if w.notifier != nil {
