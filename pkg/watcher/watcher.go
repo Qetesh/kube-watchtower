@@ -23,7 +23,7 @@ type Watcher struct {
 
 // NewWatcher creates a new watcher
 func NewWatcher(cfg *config.Config) (*Watcher, error) {
-	k8sClient, err := k8s.NewClient(cfg.Namespace)
+	k8sClient, err := k8s.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
@@ -65,7 +65,8 @@ func (w *Watcher) check(ctx context.Context) error {
 	}
 
 	// List all workloads (Deployments, DaemonSets, StatefulSets)
-	workloads, err := w.k8sClient.ListWorkloads(ctx)
+	// Pass disabled namespaces to filter at the client level
+	workloads, err := w.k8sClient.ListWorkloads(ctx, w.config.DisableNamespaces)
 	if err != nil {
 		return fmt.Errorf("failed to list workloads: %w", err)
 	}
@@ -79,12 +80,6 @@ func (w *Watcher) check(ctx context.Context) error {
 	// Check each workload
 	for _, workload := range workloads {
 		for _, container := range workload.Containers {
-			// Check if container is disabled
-			if w.config.IsContainerDisabled(container.Name) {
-				logger.Debugf("Skipping disabled container: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
-				continue
-			}
-
 			scannedCount++
 
 			logger.Debugf("Checking container: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
@@ -187,17 +182,6 @@ func (w *Watcher) updateContainer(ctx context.Context, workload k8s.WorkloadInfo
 	err = w.k8sClient.WaitForRollout(ctx, workload.Type, workload.Namespace, workload.Name, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("rollout failed: %w", err)
-	}
-
-	// Cleanup old resources
-	if w.config.Cleanup {
-		logger.Debugf("Cleaning up old resources: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
-		// Log removing old resources (like watchtower logs "Removing image")
-		logger.Infof("Removing old resources for %s/%s", workload.Namespace, workload.Name)
-		err = w.k8sClient.CleanupOldResources(ctx, workload.Type, workload.Namespace, workload.Name)
-		if err != nil {
-			logger.Warnf("Cleanup warning: %v", err)
-		}
 	}
 
 	logger.Debugf("Update completed: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)

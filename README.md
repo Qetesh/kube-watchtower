@@ -35,10 +35,10 @@ Environment Variables
 
 | **Variable**       | **Description**                                  | **Default** | **Example**         |
 | ------------------ | ------------------------------------------------ | ----------- | ------------------- |
-| NAMESPACE          | Namespace to monitor (empty = all)               | ""          | default, production |
-| DISABLE_CONTAINERS | Comma-separated list of excluded container names | ""          | nginx,redis         |
+| DISABLE_NAMESPACES | Comma-separated list of excluded namespaces      | ""          | kube-system,default |
 | NOTIFICATION_URL   | Notification URL (Shoutrrr format)               | ""          | See below           |
-| NOTIFICATIONS_CLUSTER   | Notification cluster name                        | ""          | cluster1, cluster2 |
+| NOTIFICATION_CLUSTER | Notification cluster name                      | kubernetes  | cluster1, cluster2  |
+| LOG_LEVEL          | Log level (debug, info, warn, error)             | info        | debug, info         |
 
 ---
 
@@ -53,7 +53,7 @@ kube-watchtower integrates with [Shoutrrr](https://containrrr.dev/shoutrrr/) to 
 kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets that meet all the following criteria:
 
 	1.	✅ The container's imagePullPolicy is set to Always
-	2.	✅ The container is not listed in DISABLE_NAMESPACE
+	2.	✅ The namespace is not listed in DISABLE_NAMESPACES
 
 ---
 
@@ -76,31 +76,33 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 - [x] Notifier formatter(Start log, Update log)
 - [x] CronJob support
 - [x] Private registry support via ImagePullSecrets
-- [ ] Namespace denylist support
+- [x] Namespace denylist support
 - [ ] Rollout timeout support
 - [ ] Check only mode support
+- [ ] Removes old images after updating(Due to architectural limits, image pruning is not supported. Suggestions are welcome)
 
 ---
 
 ### ❓ FAQ
 
-Q: My container isn’t being monitored. Why?
+Q: My container isn't being monitored. Why?
 
-Ensure that imagePullPolicy is set to Always, and the container name is not listed in DISABLE_CONTAINERS.
+Ensure that imagePullPolicy is set to Always, and the namespace is not listed in DISABLE_NAMESPACES.
 
 Q: Can I monitor private registries?
 
 Yes. Make sure your cluster is configured with valid ImagePullSecrets.
-kube-watchtower automatically uses the Pod’s service account credentials.
+kube-watchtower automatically uses the Pod's service account credentials.
 
 Q: What happens if an update fails?
 
 Kubernetes will automatically roll back the Deployment.
 You can also receive failure notifications via your configured Shoutrrr channel.
 
-Q: Can I monitor multiple namespaces?
+Q: How do I exclude specific namespaces?
 
-Yes. Leave the NAMESPACE variable empty to monitor all namespaces (requires proper RBAC permissions).
+Set the DISABLE_NAMESPACES environment variable with a comma-separated list of namespace names to exclude.
+Example: `DISABLE_NAMESPACES=kube-system,kube-public,default`
 
 ---
 

@@ -11,8 +11,9 @@ metadata:
   name: kube-watchtower-config
   namespace: kube-watchtower
 data:
+  DISABLE_NAMESPACES: "kube-system,kube-public"  # Comma-separated list of namespaces to exclude
   NOTIFICATION_URL: ""
-  NOTIFICATION_CLUSTER: ""
+  NOTIFICATION_CLUSTER: "kubernetes"
   TZ: "Asia/Shanghai"
   LOG_LEVEL: "info"
 

@@ -27,8 +27,8 @@ func main() {
 	logger.Infof("kube-watchtower %s", version)
 
 	// Debug configuration
-	logger.Debugf("Configuration loaded: Namespace=%s, Cleanup=%v",
-		cfg.Namespace, cfg.Cleanup)
+	logger.Debugf("Configuration loaded: DisableNamespaces=%v",
+		cfg.DisableNamespaces)
 
 	// Create watcher
 	w, err := watcher.NewWatcher(cfg)
@@ -39,21 +39,34 @@ func main() {
 
 	// Setup signal handling
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
+	// Signal handler goroutine
+	done := make(chan struct{})
 	go func() {
-		<-sigCh
-		logger.Info("Received interrupt signal, shutting down...")
-		cancel()
+		select {
+		case sig := <-sigCh:
+			logger.Infof("Received signal %v, shutting down...", sig)
+			cancel()
+		case <-ctx.Done():
+			// Context cancelled by other means, exit gracefully
+		}
+		close(done)
 	}()
 
 	// Run watcher
 	if err := w.Run(ctx); err != nil && err != context.Canceled {
+		cancel()
+		signal.Stop(sigCh)
 		logger.Fatalf("Watcher failed: %v", err)
 	}
+
+	// Cancel context and wait for signal handler to exit
+	cancel()
+	signal.Stop(sigCh)
+	<-done
 
 	logger.Info("kube-watchtower stopped")
 }

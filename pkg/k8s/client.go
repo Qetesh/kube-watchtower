@@ -20,11 +20,10 @@ import (
 // Client Kubernetes client wrapper
 type Client struct {
 	clientset *kubernetes.Clientset
-	namespace string
 }
 
 // NewClient creates a new Kubernetes client
-func NewClient(namespace string) (*Client, error) {
+func NewClient() (*Client, error) {
 	config, err := getKubeConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kubeconfig: %w", err)
@@ -37,7 +36,6 @@ func NewClient(namespace string) (*Client, error) {
 
 	return &Client{
 		clientset: clientset,
-		namespace: namespace,
 	}, nil
 }
 
@@ -84,11 +82,9 @@ type ContainerInfo struct {
 }
 
 // ListWorkloads lists all workloads (Deployments, DaemonSets, StatefulSets) to monitor
-func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
-	namespace := c.namespace
-	if namespace == "" {
-		namespace = corev1.NamespaceAll
-	}
+func (c *Client) ListWorkloads(ctx context.Context, excludeNamespaces []string) ([]WorkloadInfo, error) {
+	// Always list all namespaces
+	namespace := corev1.NamespaceAll
 
 	var result []WorkloadInfo
 
@@ -100,9 +96,10 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 	for _, deploy := range deployments.Items {
 		// Only process deployments with available replicas
 		if deploy.Status.AvailableReplicas <= 0 {
+			logger.Debugf("Skipping deployment: %s/%s (available replicas: %d)", deploy.Namespace, deploy.Name, deploy.Status.AvailableReplicas)
 			continue
 		}
-		if workload := c.processWorkload(ctx, WorkloadTypeDeployment, deploy.Name, deploy.Namespace, &deploy.Spec.Template.Spec, deploy.Spec.Selector); workload != nil {
+		if workload := c.processWorkload(ctx, WorkloadTypeDeployment, deploy.Name, deploy.Namespace, &deploy.Spec.Template.Spec, deploy.Spec.Selector, excludeNamespaces); workload != nil {
 			result = append(result, *workload)
 		}
 	}
@@ -115,9 +112,10 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 	for _, ds := range daemonsets.Items {
 		// Only process daemonsets with available replicas
 		if ds.Status.NumberAvailable <= 0 {
+			logger.Debugf("Skipping daemonset: %s/%s (available replicas: %d)", ds.Namespace, ds.Name, ds.Status.NumberAvailable)
 			continue
 		}
-		if workload := c.processWorkload(ctx, WorkloadTypeDaemonSet, ds.Name, ds.Namespace, &ds.Spec.Template.Spec, ds.Spec.Selector); workload != nil {
+		if workload := c.processWorkload(ctx, WorkloadTypeDaemonSet, ds.Name, ds.Namespace, &ds.Spec.Template.Spec, ds.Spec.Selector, excludeNamespaces); workload != nil {
 			result = append(result, *workload)
 		}
 	}
@@ -130,9 +128,10 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 	for _, sts := range statefulsets.Items {
 		// Only process statefulsets with available replicas
 		if sts.Status.AvailableReplicas <= 0 {
+			logger.Debugf("Skipping statefulset: %s/%s (available replicas: %d)", sts.Namespace, sts.Name, sts.Status.AvailableReplicas)
 			continue
 		}
-		if workload := c.processWorkload(ctx, WorkloadTypeStatefulSet, sts.Name, sts.Namespace, &sts.Spec.Template.Spec, sts.Spec.Selector); workload != nil {
+		if workload := c.processWorkload(ctx, WorkloadTypeStatefulSet, sts.Name, sts.Namespace, &sts.Spec.Template.Spec, sts.Spec.Selector, excludeNamespaces); workload != nil {
 			result = append(result, *workload)
 		}
 	}
@@ -141,7 +140,15 @@ func (c *Client) ListWorkloads(ctx context.Context) ([]WorkloadInfo, error) {
 }
 
 // processWorkload processes a workload and extracts container information
-func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType, name, namespace string, podSpec *corev1.PodSpec, selector *metav1.LabelSelector) *WorkloadInfo {
+func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType, name, namespace string, podSpec *corev1.PodSpec, selector *metav1.LabelSelector, excludeNamespaces []string) *WorkloadInfo {
+	// Check if namespace is disabled
+	for _, excludeNs := range excludeNamespaces {
+		if excludeNs != "" && excludeNs == namespace {
+			logger.Debugf("Skipping disabled namespace: %s", namespace)
+			return nil
+		}
+	}
+
 	// Extract containers with Always pull policy
 	var containers []ContainerInfo
 	for _, container := range podSpec.Containers {
@@ -154,6 +161,8 @@ func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType,
 				ImagePullPolicy: container.ImagePullPolicy,
 				Tag:             tag,
 			})
+		} else {
+			logger.Debugf("Skipping container: %s/%s (image pull policy: %s)", namespace, name, container.ImagePullPolicy)
 		}
 	}
 
@@ -183,7 +192,7 @@ func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType,
 
 // ListDeployments lists all deployments to monitor (deprecated, use ListWorkloads)
 func (c *Client) ListDeployments(ctx context.Context) ([]WorkloadInfo, error) {
-	return c.ListWorkloads(ctx)
+	return c.ListWorkloads(ctx, nil)
 }
 
 // extractImageTag extracts tag from image string
@@ -438,90 +447,12 @@ func isStatefulSetRolloutComplete(statefulset *appsv1.StatefulSet) bool {
 	return false
 }
 
-// CleanupOldResources cleans up old resources (ReplicaSets for Deployments, ControllerRevisions for DaemonSets/StatefulSets)
-func (c *Client) CleanupOldResources(ctx context.Context, workloadType WorkloadType, namespace, name string) error {
-	switch workloadType {
-	case WorkloadTypeDeployment:
-		return c.cleanupOldReplicaSets(ctx, namespace, name)
-	case WorkloadTypeDaemonSet:
-		return c.cleanupOldControllerRevisions(ctx, namespace, name)
-	case WorkloadTypeStatefulSet:
-		return c.cleanupOldControllerRevisions(ctx, namespace, name)
-	default:
-		return fmt.Errorf("unsupported workload type: %s", workloadType)
-	}
-}
-
-// cleanupOldReplicaSets cleans up old ReplicaSets for Deployments
-func (c *Client) cleanupOldReplicaSets(ctx context.Context, namespace, name string) error {
-	deployment, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get deployment: %w", err)
-	}
-
-	labelSelector := metav1.FormatLabelSelector(deployment.Spec.Selector)
-	replicaSets, err := c.clientset.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list replicasets: %w", err)
-	}
-
-	for _, rs := range replicaSets.Items {
-		if rs.Spec.Replicas != nil && *rs.Spec.Replicas == 0 {
-			err := c.clientset.AppsV1().ReplicaSets(namespace).Delete(ctx, rs.Name, metav1.DeleteOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to delete replicaset: %w", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// cleanupOldControllerRevisions cleans up old ControllerRevisions for DaemonSets and StatefulSets
-func (c *Client) cleanupOldControllerRevisions(ctx context.Context, namespace, name string) error {
-	// List all controller revisions
-	revisions, err := c.clientset.AppsV1().ControllerRevisions(namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to list controller revisions: %w", err)
-	}
-
-	// Find revisions belonging to this workload, keep only the latest 2
-	var workloadRevisions []appsv1.ControllerRevision
-	for _, rev := range revisions.Items {
-		if ownerName := getOwnerName(rev.OwnerReferences); ownerName == name {
-			workloadRevisions = append(workloadRevisions, rev)
-		}
-	}
-
-	// Sort by revision number (descending)
-	if len(workloadRevisions) <= 2 {
-		return nil // Keep at least 2 revisions
-	}
-
-	// Delete old revisions (keep the latest 2)
-	for i := 2; i < len(workloadRevisions); i++ {
-		err := c.clientset.AppsV1().ControllerRevisions(namespace).Delete(ctx, workloadRevisions[i].Name, metav1.DeleteOptions{})
-		if err != nil {
-			logger.Warnf("Failed to delete controller revision %s: %v", workloadRevisions[i].Name, err)
-		}
-	}
-
-	return nil
-}
-
 // getOwnerName gets the owner name from owner references
 func getOwnerName(ownerRefs []metav1.OwnerReference) string {
 	if len(ownerRefs) > 0 {
 		return ownerRefs[0].Name
 	}
 	return ""
-}
-
-// CleanupOldReplicaSets cleans up old ReplicaSets (deprecated, use CleanupOldResources)
-func (c *Client) CleanupOldReplicaSets(ctx context.Context, namespace, deploymentName string) error {
-	return c.CleanupOldResources(ctx, WorkloadTypeDeployment, namespace, deploymentName)
 }
 
 // DockerConfigJSON represents the structure of .dockerconfigjson

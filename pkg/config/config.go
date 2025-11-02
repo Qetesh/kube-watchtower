@@ -9,20 +9,14 @@ import (
 // Config stores application configuration
 type Config struct {
 
-	// Enable cleanup of old resources
-	Cleanup bool
-
-	// List of disabled containers (comma separated)
-	DisableContainers []string
-
 	// Notification URL (shoutrrr format)
 	NotificationURL string
 
 	// Notification cluster name
 	NotificationCluster string
 
-	// Kubernetes namespace (empty means all namespaces)
-	Namespace string
+	// Kubernetes disable namespaces (comma separated)
+	DisableNamespaces []string
 
 	LogLevel string
 }
@@ -31,28 +25,26 @@ type Config struct {
 func LoadConfig() *Config {
 	config := &Config{
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
-		Cleanup:             getEnvBool("CLEANUP", true),
 		NotificationURL:     getEnv("NOTIFICATION_URL", ""),
 		NotificationCluster: getEnv("NOTIFICATION_CLUSTER", "kubernetes"),
-		Namespace:           getEnv("NAMESPACE", ""),
 	}
 
-	// Parse disabled containers list
-	disableContainersStr := getEnv("DISABLE_CONTAINERS", "")
-	if disableContainersStr != "" {
-		config.DisableContainers = strings.Split(disableContainersStr, ",")
-		for i := range config.DisableContainers {
-			config.DisableContainers[i] = strings.TrimSpace(config.DisableContainers[i])
+	// Parse disabled namespaces list
+	disableNamespacesStr := getEnv("DISABLE_NAMESPACES", "")
+	if disableNamespacesStr != "" {
+		config.DisableNamespaces = strings.Split(disableNamespacesStr, ",")
+		for i := range config.DisableNamespaces {
+			config.DisableNamespaces[i] = strings.TrimSpace(config.DisableNamespaces[i])
 		}
 	}
 
 	return config
 }
 
-// IsContainerDisabled checks if a container is disabled
-func (c *Config) IsContainerDisabled(containerName string) bool {
-	for _, disabled := range c.DisableContainers {
-		if disabled == containerName {
+// IsNamespaceDisabled checks if a namespace is disabled
+func (c *Config) IsNamespaceDisabled(namespace string) bool {
+	for _, disabled := range c.DisableNamespaces {
+		if disabled == namespace {
 			return true
 		}
 	}
