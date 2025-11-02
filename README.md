@@ -9,23 +9,23 @@ It automatically tracks container image updates within your Kubernetes cluster a
 ⚠️ kube-watchtower is currently in beta and not recommended for production use.
 
 ### ✨ Features
-	•	✅ Automatically monitors container image updates in Deployments, DaemonSets, and StatefulSets
-	•	✅ Detects containers with imagePullPolicy: Always
-	•	✅ Supports all image tags (latest, stable, version tags, etc.)
-	•	✅ Accurate digest tracking — reads the currently running image digest directly from Pods
-	•	✅ Uses Docker Registry API to check for updates
-	•	✅ Safely performs Kubernetes rollouts when new digests are available
-	•	✅ Supports notifications via Shoutrrr
-	•	✅ Namespace denylist support
-	•	✅ Supports scheduled via CronJob
+- ✅ Automatically monitors container image updates in Deployments, DaemonSets, and StatefulSets
+- ✅ Detects containers with imagePullPolicy: Always
+- ✅ Supports all image tags (latest, stable, version tags, etc.)
+- ✅ Accurate digest tracking — reads the currently running image digest directly from Pods
+- ✅ Uses Docker Registry API to check for updates
+- ✅ Safely performs Kubernetes rollouts when new digests are available
+- ✅ Supports notifications via Shoutrrr
+- ✅ Namespace denylist support
+- ✅ Supports scheduled via CronJob
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-	•	A running Kubernetes cluster
-	•	Proper RBAC permissions for Deployment, DaemonSet, StatefulSet, and Pod management
+- A running Kubernetes cluster
+- Proper RBAC permissions for Deployment, DaemonSet, StatefulSet, and Pod management
 
 ---
 
@@ -52,8 +52,8 @@ kube-watchtower integrates with [Shoutrrr](https://containrrr.dev/shoutrrr/) to 
 
 kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets that meet all the following criteria:
 
-	1.	✅ The container's imagePullPolicy is set to Always
-	2.	✅ The namespace is not listed in DISABLE_NAMESPACES
+- ✅ The container's imagePullPolicy is set to Always
+- ✅ The namespace is not listed in DISABLE_NAMESPACES
 
 ---
 
@@ -113,9 +113,9 @@ Apache-2.0 license
 ---
 
 ### 💡 Acknowledgments
-	•	Watchtower — inspiration
-	•	Shoutrrr — notification framework
-	•	The Kubernetes community
+- Watchtower — inspiration
+- Shoutrrr — notification framework
+- The Kubernetes community
 
 ---
 
