@@ -7,6 +7,7 @@ require (
 	github.com/docker/docker v28.5.1+incompatible
 	github.com/google/go-containerregistry v0.20.6
 	go.uber.org/zap v1.27.0
+	golang.org/x/term v0.36.0
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1
@@ -78,7 +79,6 @@ require (
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect

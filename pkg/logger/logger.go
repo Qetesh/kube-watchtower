@@ -6,26 +6,97 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/term"
 )
 
-var log *zap.SugaredLogger
+var (
+	log          *zap.SugaredLogger
+	colorEnabled bool
+)
+
+// ANSI color codes
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorPurple = "\033[35m"
+
+	// Bright colors
+	colorBrightRed = "\033[91m"
+)
+
+// coloredWriteSyncer wraps zapcore.WriteSyncer to add colors to entire log lines
+type coloredWriteSyncer struct {
+	zapcore.WriteSyncer
+	colorEnabled bool
+}
+
+// Write intercepts the output and adds color to the entire line based on log level
+func (c *coloredWriteSyncer) Write(p []byte) (n int, err error) {
+	if !c.colorEnabled {
+		return c.WriteSyncer.Write(p)
+	}
+
+	line := string(p)
+	var color string
+
+	// Detect log level in the line and choose color
+	if strings.Contains(line, "DEBUG") {
+		color = colorPurple
+	} else if strings.Contains(line, "INFO") {
+		color = colorGreen
+	} else if strings.Contains(line, "WARN") {
+		color = colorYellow
+	} else if strings.Contains(line, "ERROR") {
+		color = colorRed
+	} else if strings.Contains(line, "FATAL") || strings.Contains(line, "PANIC") {
+		color = colorBrightRed
+	}
+
+	// Add color to entire line
+	if color != "" {
+		// Remove trailing newline, add color, then add newline back
+		line = strings.TrimSuffix(line, "\n")
+		line = color + line + colorReset + "\n"
+	}
+
+	return c.WriteSyncer.Write([]byte(line))
+}
 
 // Init initializes the logger with the specified level
 func Init(level string) error {
 	zapLevel := parseLevel(level)
 
+	// Check if output is a terminal to decide color usage
+	colorEnabled = term.IsTerminal(int(os.Stdout.Fd()))
+
+	// Configure encoder
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "time",
 		LevelKey:       "level",
 		MessageKey:     "msg",
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.RFC3339TimeEncoder,
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeTime:     zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05"),
 		EncodeDuration: zapcore.StringDurationEncoder,
+		LineEnding:     zapcore.DefaultLineEnding,
 	}
 
+	// Create write syncer with color support
+	var ws zapcore.WriteSyncer
+	if colorEnabled {
+		ws = &coloredWriteSyncer{
+			WriteSyncer:  zapcore.AddSync(os.Stdout),
+			colorEnabled: colorEnabled,
+		}
+	} else {
+		ws = zapcore.AddSync(os.Stdout)
+	}
+
+	// Create core
 	core := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(encoderConfig),
-		zapcore.AddSync(os.Stdout),
+		ws,
 		zapLevel,
 	)
 
