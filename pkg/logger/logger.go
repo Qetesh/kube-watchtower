@@ -68,8 +68,19 @@ func (c *coloredWriteSyncer) Write(p []byte) (n int, err error) {
 func Init(level string) error {
 	zapLevel := parseLevel(level)
 
-	// Check if output is a terminal to decide color usage
-	colorEnabled = term.IsTerminal(int(os.Stdout.Fd()))
+	// Determine color usage based on LOG_COLOR environment variable
+	// Values: "always" (default), "never", "auto"
+	colorMode := strings.ToLower(os.Getenv("LOG_COLOR"))
+	switch colorMode {
+	case "never", "false", "0", "no":
+		colorEnabled = false
+	case "auto":
+		// Auto-detect terminal
+		colorEnabled = term.IsTerminal(int(os.Stdout.Fd()))
+	default:
+		// Default to always enabled (for container environments)
+		colorEnabled = true
+	}
 
 	// Configure encoder
 	encoderConfig := zapcore.EncoderConfig{
