@@ -15,7 +15,7 @@ data:
   NOTIFICATION_URL: ""
   NOTIFICATION_CLUSTER: "kubernetes"
   TZ: "Asia/Shanghai"
-  LOG_LEVEL: "info"
+  LOG_LEVEL: "debug"
 
 ---
 apiVersion: v1
