@@ -15,6 +15,7 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
       - uses: docker/setup-qemu-action@v2
 
@@ -47,8 +48,6 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
@@ -57,9 +56,6 @@ jobs:
         id: push
         uses: docker/build-push-action@v6
         with:
-          context: .
           platforms: linux/arm64,linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}
-          cache-to: type=inline
