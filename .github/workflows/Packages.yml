@@ -1,8 +1,11 @@
 name: kube-watchtower ci
 
 on:
- release:
-   types: [ published ]
+  push:
+    branches:
+      - main
+  release:
+    types: [published]
 
 jobs:
   build-and-push:
@@ -15,7 +18,6 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
       - uses: docker/setup-qemu-action@v2
 
@@ -26,9 +28,13 @@ jobs:
       - name: Build
         run: |
             go mod download
-            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ github.event.release.tag_name }}" -o \
+            VERSION=${{ github.event.release.tag_name }}
+            if [ "${{ github.event_name }}" = "push" ]; then
+              VERSION="edge"
+            fi
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=$VERSION" -o \
               kube-watchtower_amd64 ./cmd/kube-watchtower
-            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ github.event.release.tag_name }}" -o \
+            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=$VERSION" -o \
               kube-watchtower_arm64 ./cmd/kube-watchtower
 
       - name: Set up QEMU
@@ -49,13 +55,20 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            # main
+            type=raw,value=edge,enable={{is_default_branch}}
+            # release tag
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            # add latest tag when release
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v6
         with:
-          platforms: linux/arm64,linux/amd64
           push: true
+          platforms: linux/arm64,linux/amd64
+          labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
