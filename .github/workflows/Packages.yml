@@ -66,6 +66,7 @@ jobs:
         id: push
         uses: docker/build-push-action@v6
         with:
+          context: .
           push: true
           platforms: linux/arm64,linux/amd64
           labels: ${{ steps.meta.outputs.labels }}
