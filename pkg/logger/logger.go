@@ -76,7 +76,7 @@ func Init(level string) error {
 		colorEnabled = false
 	case "auto":
 		// Auto-detect terminal
-		colorEnabled = term.IsTerminal(int(os.Stdout.Fd()))
+		colorEnabled = term.IsTerminal(int(os.Stderr.Fd()))
 	default:
 		// Default to always enabled (for container environments)
 		colorEnabled = true
@@ -97,11 +97,11 @@ func Init(level string) error {
 	var ws zapcore.WriteSyncer
 	if colorEnabled {
 		ws = &coloredWriteSyncer{
-			WriteSyncer:  zapcore.AddSync(os.Stdout),
+			WriteSyncer:  zapcore.AddSync(os.Stderr),
 			colorEnabled: colorEnabled,
 		}
 	} else {
-		ws = zapcore.AddSync(os.Stdout)
+		ws = zapcore.AddSync(os.Stderr)
 	}
 
 	// Create core
