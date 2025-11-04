@@ -87,7 +87,7 @@ func (w *Watcher) check(ctx context.Context) error {
 			// Get registry credentials if imagePullSecrets are defined
 			var credentials *registry.RegistryCredentials
 			if len(workload.ImagePullSecrets) > 0 {
-				logger.Debugf("  ImagePullSecrets found: %v", workload.ImagePullSecrets)
+				logger.Debugf("  ImagePullSecrets found: \x1b[96m%v\x1b[0m", workload.ImagePullSecrets)
 				credentials = w.getCredentialsForImage(ctx, workload.Namespace, workload.ImagePullSecrets, container.Image)
 			}
 
@@ -133,7 +133,7 @@ func (w *Watcher) check(ctx context.Context) error {
 			}
 
 			updatedCount++
-			logger.Debugf("Update successful: %s/%s/%s", workload.Namespace, workload.Name, container.Name)
+
 			if w.notifier != nil {
 				w.notifier.AddResult(container.Image, true, nil)
 			}
@@ -159,26 +159,20 @@ func (w *Watcher) updateContainer(ctx context.Context, workload k8s.WorkloadInfo
 
 	logger.Debugf("Updating image: %s -> %s", container.Image, newImage)
 
-	// Log stopping container (like watchtower)
-	logger.Infof("Stopping /%s/%s (container: %s) with SIGTERM", workload.Namespace, workload.Name, container.Name)
-
 	// Update workload
 	err := w.k8sClient.UpdateWorkloadImage(ctx, workload.Type, workload.Namespace, workload.Name, container.Name, newImage)
 	if err != nil {
 		return fmt.Errorf("failed to update %s: %w", workload.Type, err)
 	}
 
-	// Log creating container (like watchtower)
-	logger.Infof("Creating /%s/%s", workload.Namespace, workload.Name)
-
 	// Wait for rollout to complete
-	logger.Debugf("Waiting for rollout to complete: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
+	logger.Infof("Waiting for rolling update to complete: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
 	err = w.k8sClient.WaitForRollout(ctx, workload.Type, workload.Namespace, workload.Name, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("rollout failed: %w", err)
 	}
 
-	logger.Debugf("Update completed: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
+	logger.Infof("Update completed: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
 	return nil
 }
 
