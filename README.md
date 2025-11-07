@@ -15,6 +15,8 @@ It automatically tracks container image updates within your Kubernetes cluster a
 - Supports notifications through Shoutrrr
 - Optional CronJob scheduling and namespace denylist
 
+<img width="2356" height="1294" alt="ScreenShot" src="https://github.com/user-attachments/assets/b3b588f7-6038-4f0d-ba54-7c5b330c4877" />
+
 ---
 
 ## 🚀 Getting Started
@@ -72,9 +74,9 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 - [x] CronJob support
 - [x] Private registry support via ImagePullSecrets
 - [x] Namespace denylist support
-- [ ] Rollout timeout support
+- [x] rolling update timeout support
 - [ ] Check only mode support
-- [ ] Removes old images after updating(Due to architectural limits, image pruning is not supported. Suggestions are welcome)
+- [ ] [Garbage Collection](https://kubernetes.io/docs/concepts/architecture/garbage-collection/)
 
 ---
 
