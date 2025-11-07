@@ -67,7 +67,7 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 
 ---
 
-### Todo
+### 📝 Todo
 
 - [x] Deployments, DaemonSet, StatefulSets
 - [x] Notifier formatter(Start log, Update log)
