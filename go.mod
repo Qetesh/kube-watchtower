@@ -4,7 +4,7 @@ go 1.24.9
 
 require (
 	github.com/containrrr/shoutrrr v0.8.0
-	github.com/docker/docker v28.5.1+incompatible
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/go-containerregistry v0.20.6
 	go.uber.org/zap v1.27.0
 	golang.org/x/term v0.36.0
