@@ -9,16 +9,23 @@ import (
 // Config stores application configuration
 type Config struct {
 
-	// Notification URL (shoutrrr format)
+	// Notification URL (shoutrrr format) (default: "")
 	NotificationURL string
 
-	// Notification cluster name
+	// Notification cluster name (default: "kubernetes")
 	NotificationCluster string
 
-	// Kubernetes disable namespaces (comma separated)
+	// Kubernetes disable namespaces (comma separated) (default: "")
 	DisableNamespaces []string
 
+	// Kubernetes enable namespaces (comma separated) (default: "")
+	EnableNamespaces []string
+
+	// Log level (default: info)
 	LogLevel string
+
+	// Dry-run mode (default: false)
+	DryRun bool
 }
 
 // LoadConfig loads configuration from environment variables
@@ -27,6 +34,7 @@ func LoadConfig() *Config {
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
 		NotificationURL:     getEnv("NOTIFICATION_URL", ""),
 		NotificationCluster: getEnv("NOTIFICATION_CLUSTER", "kubernetes"),
+		DryRun:              getEnvBool("DRY_RUN", false),
 	}
 
 	// Parse disabled namespaces list
@@ -38,6 +46,14 @@ func LoadConfig() *Config {
 		}
 	}
 
+	// Parse enabled namespaces list
+	enableNamespacesStr := getEnv("ENABLE_NAMESPACES", "")
+	if enableNamespacesStr != "" {
+		config.EnableNamespaces = strings.Split(enableNamespacesStr, ",")
+		for i := range config.EnableNamespaces {
+			config.EnableNamespaces[i] = strings.TrimSpace(config.EnableNamespaces[i])
+		}
+	}
 	return config
 }
 

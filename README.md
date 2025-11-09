@@ -47,6 +47,7 @@ Environment Variables
 | NOTIFICATION_URL   | Notification URL (Shoutrrr format)               | ""          | See below           |
 | NOTIFICATION_CLUSTER | Notification cluster name                      | kubernetes  | cluster1, cluster2  |
 | LOG_LEVEL          | Log level (debug, info, warn, error)             | info        | debug, info         |
+| DRY_RUN            | Enable dry-run mode (detect but not update)      | false       | true, false         |
 
 ---
 
@@ -73,10 +74,10 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 - [x] Notifier formatter(Start log, Update log)
 - [x] CronJob support
 - [x] Private registry support via ImagePullSecrets
-- [x] Namespace denylist support
-- [x] rolling update timeout support
-- [ ] Check only mode support
-- [ ] [Garbage Collection](https://kubernetes.io/docs/concepts/architecture/garbage-collection/)
+- [x] Rolling update timeout support
+- [ ] Namespace allowlist/denylist support
+- [x] Dry-run mode support
+- [ ] [Garbage Collection](https://kubernetes.io/docs/concepts/architecture/garbage-collection/) Suggestions are welcome
 
 ---
 
@@ -100,6 +101,13 @@ Q: How do I exclude specific namespaces?
 
 Set the DISABLE_NAMESPACES environment variable with a comma-separated list of namespace names to exclude.
 Example: `DISABLE_NAMESPACES=kube-system,kube-public,default`
+
+Q: Can I test without actually updating containers?
+
+Yes. Enable DRY_RUN mode by setting `DRY_RUN=true`. In this mode, kube-watchtower will:
+- Detect and report available image updates
+- Skip the actual rollout restart operations
+- Send notifications with [DRY-RUN] label showing detected updates
 
 ---
 

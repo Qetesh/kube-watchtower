@@ -14,6 +14,7 @@ data:
   DISABLE_NAMESPACES: "kube-system,kube-public"  # Comma-separated list of namespaces to exclude
   NOTIFICATION_URL: ""
   NOTIFICATION_CLUSTER: "kubernetes"
+  DRY_RUN: "false"  # Enable dry-run mode (detect but not update)
   TZ: "Asia/Shanghai"
   LOG_LEVEL: "debug"
 

@@ -33,7 +33,7 @@ func NewWatcher(cfg *config.Config) (*Watcher, error) {
 		return nil, fmt.Errorf("failed to create image checker: %w", err)
 	}
 
-	notif := notifier.NewNotifier(cfg.NotificationURL, cfg.NotificationCluster)
+	notif := notifier.NewNotifier(cfg.NotificationURL, cfg.NotificationCluster, cfg.DryRun)
 
 	return &Watcher{
 		config:       cfg,
@@ -123,25 +123,37 @@ func (w *Watcher) check(ctx context.Context) error {
 			logger.Infof("Found new %s:%s image (%s)", imageInfo.Repository, imageInfo.Tag, newDigest[:12])
 
 			// Perform update
-			if err := w.updateContainer(ctx, workload, container, newDigest); err != nil {
-				logger.Errorf("Update failed: %v", err)
+			if w.config.DryRun {
+				logger.Infof("[DRY-RUN] Would update %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
+				updatedCount++
 				if w.notifier != nil {
-					w.notifier.AddResult(container.Image, false, err)
+					w.notifier.AddResult(container.Image, true, nil)
 				}
-				failedCount++
-				continue
-			}
+			} else {
+				if err := w.updateContainer(ctx, workload, container, newDigest); err != nil {
+					logger.Errorf("Update failed: %v", err)
+					if w.notifier != nil {
+						w.notifier.AddResult(container.Image, false, err)
+					}
+					failedCount++
+					continue
+				}
 
-			updatedCount++
+				updatedCount++
 
-			if w.notifier != nil {
-				w.notifier.AddResult(container.Image, true, nil)
+				if w.notifier != nil {
+					w.notifier.AddResult(container.Image, true, nil)
+				}
 			}
 		}
 	}
 
 	// Session done (like watchtower)
-	logger.Infof("Session done Scanned=%d Updated=%d Failed=%d", scannedCount, updatedCount, failedCount)
+	if w.config.DryRun {
+		logger.Infof("[DRY-RUN] Session done Scanned=%d Detected=%d Failed=%d", scannedCount, updatedCount, failedCount)
+	} else {
+		logger.Infof("Session done Scanned=%d Updated=%d Failed=%d", scannedCount, updatedCount, failedCount)
+	}
 
 	// Send summary notification
 	if w.notifier != nil {

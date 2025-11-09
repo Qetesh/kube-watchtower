@@ -20,11 +20,12 @@ type Notifier struct {
 	url         string
 	clusterName string
 	enabled     bool
+	dryRun      bool
 	results     []UpdateResult
 }
 
 // NewNotifier creates a new notifier
-func NewNotifier(url, clusterName string) *Notifier {
+func NewNotifier(url, clusterName string, dryRun bool) *Notifier {
 	enabled := url != ""
 	if enabled {
 		logger.Infof("Using notifications: %s", extractServiceType(url))
@@ -33,6 +34,7 @@ func NewNotifier(url, clusterName string) *Notifier {
 		url:         url,
 		clusterName: clusterName,
 		enabled:     enabled,
+		dryRun:      dryRun,
 		results:     make([]UpdateResult, 0),
 	}
 }
@@ -83,7 +85,11 @@ func (n *Notifier) buildSummaryMessage(totalCount int) string {
 	var sb strings.Builder
 
 	// Title
-	sb.WriteString(fmt.Sprintf("☸️ kube-watchtower updates on %s\n\n", n.clusterName))
+	if n.dryRun {
+		sb.WriteString(fmt.Sprintf("☸️ kube-watchtower updates on %s [DRY-RUN]\n\n", n.clusterName))
+	} else {
+		sb.WriteString(fmt.Sprintf("☸️ kube-watchtower updates on %s\n\n", n.clusterName))
+	}
 
 	// Separate successful and failed updates
 	var successList []string
@@ -99,7 +105,11 @@ func (n *Notifier) buildSummaryMessage(totalCount int) string {
 
 	// Successful updates
 	if len(successList) > 0 {
-		sb.WriteString("✅ Updated successfully:\n")
+		if n.dryRun {
+			sb.WriteString("🔍 Detected updates:\n")
+		} else {
+			sb.WriteString("✅ Updated successfully:\n")
+		}
 		for _, image := range successList {
 			sb.WriteString(fmt.Sprintf("- %s\n", image))
 		}
