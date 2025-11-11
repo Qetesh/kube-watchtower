@@ -57,14 +57,27 @@ func LoadConfig() *Config {
 	return config
 }
 
-// IsNamespaceDisabled checks if a namespace is disabled
-func (c *Config) IsNamespaceDisabled(namespace string) bool {
+// IsNamespaceAllowed checks if a namespace should be monitored
+// If EnableNamespaces is not empty, only namespaces in the list are allowed (whitelist mode)
+// If EnableNamespaces is empty, all namespaces except those in DisableNamespaces are allowed (blacklist mode)
+func (c *Config) IsNamespaceAllowed(namespace string) bool {
+	// Whitelist mode: if EnableNamespaces is set, only allow those namespaces
+	if len(c.EnableNamespaces) > 0 {
+		for _, enabled := range c.EnableNamespaces {
+			if enabled == namespace {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Blacklist mode: allow all except disabled namespaces
 	for _, disabled := range c.DisableNamespaces {
 		if disabled == namespace {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // getEnv gets environment variable, returns default if not exists

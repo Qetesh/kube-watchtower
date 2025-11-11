@@ -11,11 +11,23 @@ metadata:
   name: kube-watchtower-config
   namespace: kube-watchtower
 data:
-  DISABLE_NAMESPACES: "kube-system,kube-public"  # Comma-separated list of namespaces to exclude
+  # Namespace filtering (choose one mode):
+  # Whitelist mode: Only monitor specified namespaces (recommended for production)
+  ENABLE_NAMESPACES: ""  # Example: "production,staging"
+  # Blacklist mode: Monitor all namespaces except specified ones (used when ENABLE_NAMESPACES is empty)
+  DISABLE_NAMESPACES: "kube-system,kube-public"  # Example: "kube-system,kube-public,default"
+  
+  # Notification settings
   NOTIFICATION_URL: ""
   NOTIFICATION_CLUSTER: "kubernetes"
+  
+  # Operation mode
   DRY_RUN: "false"  # Enable dry-run mode (detect but not update)
+  
+  # Timezone https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
   TZ: "Asia/Shanghai"
+
+  # Log level (debug, info, warn, error)
   LOG_LEVEL: "debug"
 
 ---

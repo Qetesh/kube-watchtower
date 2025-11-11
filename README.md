@@ -43,7 +43,8 @@ Environment Variables
 
 | **Variable**       | **Description**                                  | **Default** | **Example**         |
 | ------------------ | ------------------------------------------------ | ----------- | ------------------- |
-| DISABLE_NAMESPACES | Comma-separated list of excluded namespaces      | ""          | kube-system,default |
+| ENABLE_NAMESPACES  | Comma-separated whitelist of namespaces (if set, only these namespaces are monitored) | "" | production,staging |
+| DISABLE_NAMESPACES | Comma-separated blacklist of namespaces (ignored if ENABLE_NAMESPACES is set) | "" | kube-system,default |
 | NOTIFICATION_URL   | Notification URL (Shoutrrr format)               | ""          | See below           |
 | NOTIFICATION_CLUSTER | Notification cluster name                      | kubernetes  | cluster1, cluster2  |
 | LOG_LEVEL          | Log level (debug, info, warn, error)             | info        | debug, info         |
@@ -63,8 +64,12 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 
 - ✅ The container's imagePullPolicy is set to Always
 - ✅ The container has available replicas
-- ✅ The namespace is not listed in DISABLE_NAMESPACES
+- ✅ The namespace passes the whitelist/blacklist filter (see below)
 - ✅ ImagePullSecret is set up for the private Docker registry
+
+**Namespace Filtering:**
+- If `ENABLE_NAMESPACES` is set, only namespaces in this list will be monitored (whitelist mode)
+- If `ENABLE_NAMESPACES` is empty, all namespaces except those in `DISABLE_NAMESPACES` will be monitored (blacklist mode)
 
 ---
 
@@ -75,7 +80,7 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 - [x] CronJob support
 - [x] Private registry support via ImagePullSecrets
 - [x] Rolling update timeout support
-- [ ] Namespace allowlist/denylist support
+- [x] Namespace allowlist/denylist support
 - [x] Dry-run mode support
 - [ ] [Garbage Collection](https://kubernetes.io/docs/concepts/architecture/garbage-collection/) Suggestions are welcome
 
@@ -97,10 +102,19 @@ Q: What happens if an update fails?
 Kubernetes will automatically roll back the Deployment.
 You can also receive failure notifications via your configured Shoutrrr channel.
 
-Q: How do I exclude specific namespaces?
+Q: How do I control which namespaces to monitor?
 
-Set the DISABLE_NAMESPACES environment variable with a comma-separated list of namespace names to exclude.
+There are two modes:
+
+**Whitelist Mode (recommended for production):**
+Set `ENABLE_NAMESPACES` to only monitor specific namespaces.
+Example: `ENABLE_NAMESPACES=production,staging`
+
+**Blacklist Mode:**
+Leave `ENABLE_NAMESPACES` empty and use `DISABLE_NAMESPACES` to exclude specific namespaces.
 Example: `DISABLE_NAMESPACES=kube-system,kube-public,default`
+
+Note: If `ENABLE_NAMESPACES` is set, `DISABLE_NAMESPACES` is ignored.
 
 Q: Can I test without actually updating containers?
 

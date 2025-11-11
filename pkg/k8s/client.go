@@ -81,8 +81,13 @@ type ContainerInfo struct {
 	Tag             string // Image tag
 }
 
+// NamespaceFilter defines namespace filtering logic
+type NamespaceFilter interface {
+	IsNamespaceAllowed(namespace string) bool
+}
+
 // ListWorkloads lists all workloads (Deployments, DaemonSets, StatefulSets) to monitor
-func (c *Client) ListWorkloads(ctx context.Context, excludeNamespaces []string) ([]WorkloadInfo, error) {
+func (c *Client) ListWorkloads(ctx context.Context, nsFilter NamespaceFilter) ([]WorkloadInfo, error) {
 	// Always list all namespaces
 	namespace := corev1.NamespaceAll
 
@@ -99,7 +104,7 @@ func (c *Client) ListWorkloads(ctx context.Context, excludeNamespaces []string) 
 			logger.Debugf("Skipping deployment: %s/%s (available replicas: %d)", deploy.Namespace, deploy.Name, deploy.Status.AvailableReplicas)
 			continue
 		}
-		if workload := c.processWorkload(ctx, WorkloadTypeDeployment, deploy.Name, deploy.Namespace, &deploy.Spec.Template.Spec, deploy.Spec.Selector, excludeNamespaces); workload != nil {
+		if workload := c.processWorkload(ctx, WorkloadTypeDeployment, deploy.Name, deploy.Namespace, &deploy.Spec.Template.Spec, deploy.Spec.Selector, nsFilter); workload != nil {
 			result = append(result, *workload)
 		}
 	}
@@ -115,7 +120,7 @@ func (c *Client) ListWorkloads(ctx context.Context, excludeNamespaces []string) 
 			logger.Debugf("Skipping daemonset: %s/%s (available replicas: %d)", ds.Namespace, ds.Name, ds.Status.NumberAvailable)
 			continue
 		}
-		if workload := c.processWorkload(ctx, WorkloadTypeDaemonSet, ds.Name, ds.Namespace, &ds.Spec.Template.Spec, ds.Spec.Selector, excludeNamespaces); workload != nil {
+		if workload := c.processWorkload(ctx, WorkloadTypeDaemonSet, ds.Name, ds.Namespace, &ds.Spec.Template.Spec, ds.Spec.Selector, nsFilter); workload != nil {
 			result = append(result, *workload)
 		}
 	}
@@ -131,7 +136,7 @@ func (c *Client) ListWorkloads(ctx context.Context, excludeNamespaces []string) 
 			logger.Debugf("Skipping statefulset: %s/%s (available replicas: %d)", sts.Namespace, sts.Name, sts.Status.AvailableReplicas)
 			continue
 		}
-		if workload := c.processWorkload(ctx, WorkloadTypeStatefulSet, sts.Name, sts.Namespace, &sts.Spec.Template.Spec, sts.Spec.Selector, excludeNamespaces); workload != nil {
+		if workload := c.processWorkload(ctx, WorkloadTypeStatefulSet, sts.Name, sts.Namespace, &sts.Spec.Template.Spec, sts.Spec.Selector, nsFilter); workload != nil {
 			result = append(result, *workload)
 		}
 	}
@@ -140,13 +145,11 @@ func (c *Client) ListWorkloads(ctx context.Context, excludeNamespaces []string) 
 }
 
 // processWorkload processes a workload and extracts container information
-func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType, name, namespace string, podSpec *corev1.PodSpec, selector *metav1.LabelSelector, excludeNamespaces []string) *WorkloadInfo {
-	// Check if namespace is disabled
-	for _, excludeNs := range excludeNamespaces {
-		if excludeNs != "" && excludeNs == namespace {
-			logger.Debugf("Skipping disabled namespace: %s", namespace)
-			return nil
-		}
+func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType, name, namespace string, podSpec *corev1.PodSpec, selector *metav1.LabelSelector, nsFilter NamespaceFilter) *WorkloadInfo {
+	// Check if namespace is allowed
+	if nsFilter != nil && !nsFilter.IsNamespaceAllowed(namespace) {
+		logger.Debugf("Skipping namespace: %s (filtered)", namespace)
+		return nil
 	}
 
 	// Extract containers with Always pull policy

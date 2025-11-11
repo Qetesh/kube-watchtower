@@ -63,8 +63,8 @@ func (w *Watcher) check(ctx context.Context) error {
 	}
 
 	// List all workloads (Deployments, DaemonSets, StatefulSets)
-	// Pass disabled namespaces to filter at the client level
-	workloads, err := w.k8sClient.ListWorkloads(ctx, w.config.DisableNamespaces)
+	// Pass config for namespace filtering (whitelist or blacklist mode)
+	workloads, err := w.k8sClient.ListWorkloads(ctx, w.config)
 	if err != nil {
 		return fmt.Errorf("failed to list workloads: %w", err)
 	}
