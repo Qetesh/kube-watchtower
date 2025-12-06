@@ -53,6 +53,11 @@ func (w *Watcher) Run(ctx context.Context) error {
 	return nil
 }
 
+// workloadKey generates a unique key for a workload
+func workloadKey(workload k8s.WorkloadInfo) string {
+	return fmt.Sprintf("%s/%s/%s", workload.Type, workload.Namespace, workload.Name)
+}
+
 // check performs one check cycle
 func (w *Watcher) check(ctx context.Context) error {
 	logger.Debug("Starting image update check...")
@@ -63,7 +68,6 @@ func (w *Watcher) check(ctx context.Context) error {
 	}
 
 	// List all workloads (Deployments, DaemonSets, StatefulSets)
-	// Pass config for namespace filtering (whitelist or blacklist mode)
 	workloads, err := w.k8sClient.ListWorkloads(ctx, w.config)
 	if err != nil {
 		return fmt.Errorf("failed to list workloads: %w", err)
@@ -71,11 +75,15 @@ func (w *Watcher) check(ctx context.Context) error {
 
 	logger.Debugf("Found %d workloads to monitor", len(workloads))
 
-	updatedCount := 0
-	failedCount := 0
 	scannedCount := 0
+	failedCount := 0
 
-	// Check each workload
+	// Track workloads that need restart (avoid restarting the same workload multiple times)
+	workloadsToRestart := make(map[string]k8s.WorkloadInfo)
+	// Track updated images for each workload
+	updatedImages := make(map[string][]string)
+
+	// Phase 1: Check all containers and collect workloads that need restart
 	for _, workload := range workloads {
 		for _, container := range workload.Containers {
 			scannedCount++
@@ -87,24 +95,24 @@ func (w *Watcher) check(ctx context.Context) error {
 			// Get registry credentials if imagePullSecrets are defined
 			var credentials *registry.RegistryCredentials
 			if len(workload.ImagePullSecrets) > 0 {
-				logger.Debugf("  ImagePullSecrets found: \x1b[96m%v\x1b[0m", workload.ImagePullSecrets)
+				logger.Debugf("  ImagePullSecrets found: %v", workload.ImagePullSecrets)
 				credentials = w.getCredentialsForImage(ctx, workload.Namespace, workload.ImagePullSecrets, container.Image)
 			}
 
-			// Check for updates
-			hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, credentials)
-			if err != nil {
-				logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
-				if w.notifier != nil {
-					w.notifier.AddResult(container.Image, false, err)
-				}
-				failedCount++
-				continue
+		// Check for updates
+		hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, credentials)
+		if err != nil {
+			logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
+			if w.notifier != nil {
+				w.notifier.AddResult(workload.Namespace, container.Image, false, err)
 			}
+			failedCount++
+			continue
+		}
 
 			logger.Debugf("  Remote Digest: %s", newDigest)
 
-			// If we have current digest, use it for comparison
+			// Compare digests
 			if container.CurrentDigest != "" {
 				if container.CurrentDigest == newDigest {
 					logger.Debugf("No update needed: %s/%s/%s (digest matches)", workload.Namespace, workload.Name, container.Name)
@@ -118,31 +126,48 @@ func (w *Watcher) check(ctx context.Context) error {
 				continue
 			}
 
-			// Log new image found (like watchtower)
+			// Log new image found
 			imageInfo := registry.ParseImage(container.Image)
 			logger.Infof("Found new %s:%s image (%s)", imageInfo.Repository, imageInfo.Tag, newDigest[:12])
 
-			// Perform update
-			if w.config.DryRun {
-				logger.Infof("[DRY-RUN] Would update %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
-				updatedCount++
+			// Mark this workload for restart (deduplication at workload level)
+			key := workloadKey(workload)
+			if _, exists := workloadsToRestart[key]; !exists {
+				workloadsToRestart[key] = workload
+			}
+			updatedImages[key] = append(updatedImages[key], container.Image)
+		}
+	}
+
+	// Phase 2: Restart workloads that have updated images
+	updatedCount := 0
+	for key, workload := range workloadsToRestart {
+		images := updatedImages[key]
+
+		if w.config.DryRun {
+			logger.Infof("[DRY-RUN] Would restart %s %s/%s for %d updated image(s)", workload.Type, workload.Namespace, workload.Name, len(images))
+			updatedCount += len(images)
+			for _, img := range images {
 				if w.notifier != nil {
-					w.notifier.AddResult(container.Image, true, nil)
+					w.notifier.AddResult(workload.Namespace, img, true, nil)
 				}
-			} else {
-				if err := w.updateContainer(ctx, workload, container, newDigest); err != nil {
-					logger.Errorf("Update failed: %v", err)
+			}
+		} else {
+			if err := w.restartWorkload(ctx, workload); err != nil {
+				logger.Errorf("Failed to restart %s %s/%s: %v", workload.Type, workload.Namespace, workload.Name, err)
+				failedCount += len(images)
+				for _, img := range images {
 					if w.notifier != nil {
-						w.notifier.AddResult(container.Image, false, err)
+						w.notifier.AddResult(workload.Namespace, img, false, err)
 					}
-					failedCount++
-					continue
 				}
+				continue
+			}
 
-				updatedCount++
-
+			updatedCount += len(images)
+			for _, img := range images {
 				if w.notifier != nil {
-					w.notifier.AddResult(container.Image, true, nil)
+					w.notifier.AddResult(workload.Namespace, img, true, nil)
 				}
 			}
 		}
@@ -163,25 +188,25 @@ func (w *Watcher) check(ctx context.Context) error {
 	return nil
 }
 
-// updateContainer triggers a rolling restart of a workload to pull the new image
-// Since containers use imagePullPolicy: Always, a rollout restart will pull the latest image
-func (w *Watcher) updateContainer(ctx context.Context, workload k8s.WorkloadInfo, container k8s.ContainerInfo, newDigest string) error {
-	logger.Infof("Restarting %s/%s to pull new image (digest: %s)", workload.Namespace, workload.Name, newDigest[:12])
+// restartWorkload triggers a rolling restart of a workload to pull new images
+// Since containers use imagePullPolicy: Always, a rollout restart will pull the latest images
+func (w *Watcher) restartWorkload(ctx context.Context, workload k8s.WorkloadInfo) error {
+	logger.Infof("Restarting %s %s/%s", workload.Type, workload.Namespace, workload.Name)
 
-	// Trigger rollout restart (non-invasive, only updates annotation)
+	// Trigger rollout restart using the same mechanism as "kubectl rollout restart"
 	err := w.k8sClient.RolloutRestart(ctx, workload.Type, workload.Namespace, workload.Name)
 	if err != nil {
 		return fmt.Errorf("failed to restart %s: %w", workload.Type, err)
 	}
 
 	// Wait for rollout to complete
-	logger.Infof("Waiting for rolling update to complete: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
+	logger.Infof("Waiting for rollout to complete: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
 	err = w.k8sClient.WaitForRollout(ctx, workload.Type, workload.Namespace, workload.Name, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("rollout failed: %w", err)
 	}
 
-	logger.Infof("Update completed: %s/%s/%s (%s)", workload.Namespace, workload.Name, container.Name, workload.Type)
+	logger.Infof("Rollout completed: %s/%s (%s)", workload.Namespace, workload.Name, workload.Type)
 	return nil
 }
 

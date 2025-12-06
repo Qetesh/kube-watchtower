@@ -97,10 +97,11 @@ Q: Can I monitor private registries?
 Yes. Make sure your cluster is configured with valid ImagePullSecrets.
 kube-watchtower automatically uses the Pod's service account credentials.
 
-Q: What happens if an update fails?
+Q: What happens if the update doesn’t complete?
 
-Kubernetes will automatically roll back the Deployment.
-You can also receive failure notifications via your configured Shoutrrr channel.
+GitOps tools like ArgoCD may automatically self-heal resources, reverting changes before the rollout finishes.
+This can prevent all Pods from updating successfully.
+You may need to temporarily disable self-heal during the update.
 
 Q: How do I control which namespaces to monitor?
 

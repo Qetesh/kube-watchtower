@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -12,14 +13,19 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/kubectl/pkg/cmd/rollout"
+	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 // Client Kubernetes client wrapper
 type Client struct {
-	clientset *kubernetes.Clientset
+	clientset   *kubernetes.Clientset
+	configFlags *genericclioptions.ConfigFlags
+	factory     cmdutil.Factory
 }
 
 // NewClient creates a new Kubernetes client
@@ -34,8 +40,14 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("failed to create clientset: %w", err)
 	}
 
+	// Initialize ConfigFlags for kubectl-native operations
+	configFlags := genericclioptions.NewConfigFlags(true)
+	factory := cmdutil.NewFactory(configFlags)
+
 	return &Client{
-		clientset: clientset,
+		clientset:   clientset,
+		configFlags: configFlags,
+		factory:     factory,
 	}, nil
 }
 
@@ -267,60 +279,60 @@ func (c *Client) fillCurrentDigestsFromSelector(ctx context.Context, namespace s
 	return nil
 }
 
-// RolloutRestart triggers a rolling restart of the workload by updating an annotation
-// This is the non-invasive way to update containers with imagePullPolicy: Always
-// It works like "kubectl rollout restart" - only changes an annotation, not the image
-func (c *Client) RolloutRestart(ctx context.Context, workloadType WorkloadType, namespace, name string) error {
-	restartAnnotation := map[string]string{
-		"kube-watchtower.io/restartedAt": time.Now().Format(time.RFC3339),
-	}
-
+// RolloutRestart triggers a rolling restart of the workload using kubectl's native rollout restart implementation.
+// This uses the same mechanism as "kubectl rollout restart" command, ensuring maximum compatibility and minimal risk.
+func (c *Client) RolloutRestart(_ context.Context, workloadType WorkloadType, namespace, name string) error {
+	// Convert workload type to kubectl resource type string
+	var resourceType string
 	switch workloadType {
 	case WorkloadTypeDeployment:
-		deployment, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get deployment: %w", err)
-		}
-		if deployment.Spec.Template.Annotations == nil {
-			deployment.Spec.Template.Annotations = make(map[string]string)
-		}
-		for k, v := range restartAnnotation {
-			deployment.Spec.Template.Annotations[k] = v
-		}
-		_, err = c.clientset.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{})
-		return err
-
+		resourceType = "deployment"
 	case WorkloadTypeDaemonSet:
-		daemonset, err := c.clientset.AppsV1().DaemonSets(namespace).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get daemonset: %w", err)
-		}
-		if daemonset.Spec.Template.Annotations == nil {
-			daemonset.Spec.Template.Annotations = make(map[string]string)
-		}
-		for k, v := range restartAnnotation {
-			daemonset.Spec.Template.Annotations[k] = v
-		}
-		_, err = c.clientset.AppsV1().DaemonSets(namespace).Update(ctx, daemonset, metav1.UpdateOptions{})
-		return err
-
+		resourceType = "daemonset"
 	case WorkloadTypeStatefulSet:
-		statefulset, err := c.clientset.AppsV1().StatefulSets(namespace).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get statefulset: %w", err)
-		}
-		if statefulset.Spec.Template.Annotations == nil {
-			statefulset.Spec.Template.Annotations = make(map[string]string)
-		}
-		for k, v := range restartAnnotation {
-			statefulset.Spec.Template.Annotations[k] = v
-		}
-		_, err = c.clientset.AppsV1().StatefulSets(namespace).Update(ctx, statefulset, metav1.UpdateOptions{})
-		return err
-
+		resourceType = "statefulset"
 	default:
 		return fmt.Errorf("unsupported workload type: %s", workloadType)
 	}
+
+	// Capture output for error messages
+	var stdout, stderr bytes.Buffer
+	streams := genericclioptions.IOStreams{
+		In:     nil,
+		Out:    &stdout,
+		ErrOut: &stderr,
+	}
+
+	// Create rollout restart command using kubectl's native implementation
+	cmd := rollout.NewCmdRolloutRestart(c.factory, streams)
+	// Inject kubeconfig flags (including namespace) so the command knows the target namespace
+	c.configFlags.AddFlags(cmd.Flags())
+	if c.configFlags.Namespace == nil {
+		c.configFlags.Namespace = new(string)
+	}
+	*c.configFlags.Namespace = namespace
+	// Set the flag value directly to avoid relying on CLI args
+	if err := cmd.Flags().Set("namespace", namespace); err != nil {
+		return fmt.Errorf("failed to set namespace flag: %w", err)
+	}
+
+	cmd.SetArgs([]string{
+		fmt.Sprintf("%s/%s", resourceType, name),
+	})
+
+	// Execute the command
+	if err := cmd.Execute(); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg != "" {
+			return fmt.Errorf("rollout restart failed: %s", errMsg)
+		}
+		return fmt.Errorf("rollout restart failed: %w", err)
+	}
+
+	if out := strings.TrimSpace(stdout.String()); out != "" {
+		logger.Debugf("Rollout restart output: %s", out)
+	}
+	return nil
 }
 
 // WaitForRollout waits for workload rollout to complete
