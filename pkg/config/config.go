@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"strings"
-	"time"
 )
 
 // Config stores application configuration
@@ -95,17 +94,4 @@ func getEnvBool(key string, defaultValue bool) bool {
 		return defaultValue
 	}
 	return value == "true" || value == "1" || value == "yes"
-}
-
-// getEnvDuration gets duration environment variable
-func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	duration, err := time.ParseDuration(value)
-	if err != nil {
-		return defaultValue
-	}
-	return duration
 }

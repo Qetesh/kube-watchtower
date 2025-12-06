@@ -28,9 +28,6 @@ vendor/
 # macOS
 .DS_Store
 
-# Binary
-/kube-watchtower
-
 # Local config
 .env
 *.local

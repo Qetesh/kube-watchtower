@@ -163,18 +163,15 @@ func (w *Watcher) check(ctx context.Context) error {
 	return nil
 }
 
-// updateContainer updates a container in a workload
+// updateContainer triggers a rolling restart of a workload to pull the new image
+// Since containers use imagePullPolicy: Always, a rollout restart will pull the latest image
 func (w *Watcher) updateContainer(ctx context.Context, workload k8s.WorkloadInfo, container k8s.ContainerInfo, newDigest string) error {
-	// Build new image name
-	imageInfo := registry.ParseImage(container.Image)
-	newImage := fmt.Sprintf("%s:%s@%s", imageInfo.Repository, imageInfo.Tag, newDigest)
+	logger.Infof("Restarting %s/%s to pull new image (digest: %s)", workload.Namespace, workload.Name, newDigest[:12])
 
-	logger.Debugf("Updating image: %s -> %s", container.Image, newImage)
-
-	// Update workload
-	err := w.k8sClient.UpdateWorkloadImage(ctx, workload.Type, workload.Namespace, workload.Name, container.Name, newImage)
+	// Trigger rollout restart (non-invasive, only updates annotation)
+	err := w.k8sClient.RolloutRestart(ctx, workload.Type, workload.Namespace, workload.Name)
 	if err != nil {
-		return fmt.Errorf("failed to update %s: %w", workload.Type, err)
+		return fmt.Errorf("failed to restart %s: %w", workload.Type, err)
 	}
 
 	// Wait for rollout to complete

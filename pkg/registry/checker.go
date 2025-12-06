@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/docker/docker/client"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -13,20 +12,11 @@ import (
 )
 
 // ImageChecker checks container image updates
-type ImageChecker struct {
-	client *client.Client
-}
+type ImageChecker struct{}
 
 // NewImageChecker creates a new image checker
 func NewImageChecker() (*ImageChecker, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create docker client: %w", err)
-	}
-
-	return &ImageChecker{
-		client: cli,
-	}, nil
+	return &ImageChecker{}, nil
 }
 
 // ImageInfo contains image information
@@ -88,7 +78,7 @@ func (ic *ImageChecker) getRemoteDigest(ctx context.Context, imageInfo *ImageInf
 
 	ref, err := name.ParseReference(imageName)
 	if err != nil {
-		logger.Fatalf("Failed to parse image name: %v", err)
+		return "", fmt.Errorf("failed to parse image name %s: %w", imageName, err)
 	}
 
 	// Prepare authentication options
@@ -118,10 +108,7 @@ func (ic *ImageChecker) getRemoteDigest(ctx context.Context, imageInfo *ImageInf
 	return desc.Digest.String(), nil
 }
 
-// Close closes the client
+// Close closes the image checker (no-op, kept for interface compatibility)
 func (ic *ImageChecker) Close() error {
-	if ic.client != nil {
-		return ic.client.Close()
-	}
 	return nil
 }

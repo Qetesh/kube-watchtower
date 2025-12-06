@@ -193,11 +193,6 @@ func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType,
 	}
 }
 
-// ListDeployments lists all deployments to monitor (deprecated, use ListWorkloads)
-func (c *Client) ListDeployments(ctx context.Context) ([]WorkloadInfo, error) {
-	return c.ListWorkloads(ctx, nil)
-}
-
 // extractImageTag extracts tag from image string
 func extractImageTag(image string) string {
 	// Remove digest part if exists
@@ -272,10 +267,12 @@ func (c *Client) fillCurrentDigestsFromSelector(ctx context.Context, namespace s
 	return nil
 }
 
-// UpdateWorkloadImage updates workload image
-func (c *Client) UpdateWorkloadImage(ctx context.Context, workloadType WorkloadType, namespace, name, containerName, newImage string) error {
-	annotation := map[string]string{
-		"kube-watchtower.io/updated-at": time.Now().Format(time.RFC3339),
+// RolloutRestart triggers a rolling restart of the workload by updating an annotation
+// This is the non-invasive way to update containers with imagePullPolicy: Always
+// It works like "kubectl rollout restart" - only changes an annotation, not the image
+func (c *Client) RolloutRestart(ctx context.Context, workloadType WorkloadType, namespace, name string) error {
+	restartAnnotation := map[string]string{
+		"kube-watchtower.io/restartedAt": time.Now().Format(time.RFC3339),
 	}
 
 	switch workloadType {
@@ -284,13 +281,10 @@ func (c *Client) UpdateWorkloadImage(ctx context.Context, workloadType WorkloadT
 		if err != nil {
 			return fmt.Errorf("failed to get deployment: %w", err)
 		}
-		if err := updateContainerImage(&deployment.Spec.Template.Spec, containerName, newImage); err != nil {
-			return err
-		}
 		if deployment.Spec.Template.Annotations == nil {
 			deployment.Spec.Template.Annotations = make(map[string]string)
 		}
-		for k, v := range annotation {
+		for k, v := range restartAnnotation {
 			deployment.Spec.Template.Annotations[k] = v
 		}
 		_, err = c.clientset.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{})
@@ -301,13 +295,10 @@ func (c *Client) UpdateWorkloadImage(ctx context.Context, workloadType WorkloadT
 		if err != nil {
 			return fmt.Errorf("failed to get daemonset: %w", err)
 		}
-		if err := updateContainerImage(&daemonset.Spec.Template.Spec, containerName, newImage); err != nil {
-			return err
-		}
 		if daemonset.Spec.Template.Annotations == nil {
 			daemonset.Spec.Template.Annotations = make(map[string]string)
 		}
-		for k, v := range annotation {
+		for k, v := range restartAnnotation {
 			daemonset.Spec.Template.Annotations[k] = v
 		}
 		_, err = c.clientset.AppsV1().DaemonSets(namespace).Update(ctx, daemonset, metav1.UpdateOptions{})
@@ -318,13 +309,10 @@ func (c *Client) UpdateWorkloadImage(ctx context.Context, workloadType WorkloadT
 		if err != nil {
 			return fmt.Errorf("failed to get statefulset: %w", err)
 		}
-		if err := updateContainerImage(&statefulset.Spec.Template.Spec, containerName, newImage); err != nil {
-			return err
-		}
 		if statefulset.Spec.Template.Annotations == nil {
 			statefulset.Spec.Template.Annotations = make(map[string]string)
 		}
-		for k, v := range annotation {
+		for k, v := range restartAnnotation {
 			statefulset.Spec.Template.Annotations[k] = v
 		}
 		_, err = c.clientset.AppsV1().StatefulSets(namespace).Update(ctx, statefulset, metav1.UpdateOptions{})
@@ -333,22 +321,6 @@ func (c *Client) UpdateWorkloadImage(ctx context.Context, workloadType WorkloadT
 	default:
 		return fmt.Errorf("unsupported workload type: %s", workloadType)
 	}
-}
-
-// updateContainerImage updates container image in pod spec
-func updateContainerImage(podSpec *corev1.PodSpec, containerName, newImage string) error {
-	for i := range podSpec.Containers {
-		if podSpec.Containers[i].Name == containerName {
-			podSpec.Containers[i].Image = newImage
-			return nil
-		}
-	}
-	return fmt.Errorf("container %s not found", containerName)
-}
-
-// UpdateDeploymentImage updates deployment image (deprecated, use UpdateWorkloadImage)
-func (c *Client) UpdateDeploymentImage(ctx context.Context, namespace, deploymentName, containerName, newImage string) error {
-	return c.UpdateWorkloadImage(ctx, WorkloadTypeDeployment, namespace, deploymentName, containerName, newImage)
 }
 
 // WaitForRollout waits for workload rollout to complete
@@ -448,14 +420,6 @@ func isStatefulSetRolloutComplete(statefulset *appsv1.StatefulSet) bool {
 		}
 	}
 	return false
-}
-
-// getOwnerName gets the owner name from owner references
-func getOwnerName(ownerRefs []metav1.OwnerReference) string {
-	if len(ownerRefs) > 0 {
-		return ownerRefs[0].Name
-	}
-	return ""
 }
 
 // DockerConfigJSON represents the structure of .dockerconfigjson
