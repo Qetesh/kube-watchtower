@@ -43,8 +43,8 @@ Environment Variables
 
 | **Variable**       | **Description**                                  | **Default** | **Example**         |
 | ------------------ | ------------------------------------------------ | ----------- | ------------------- |
-| ENABLE_NAMESPACES  | Comma-separated whitelist of namespaces (if set, only these namespaces are monitored) | "" | production,staging |
-| DISABLE_NAMESPACES | Comma-separated blacklist of namespaces (ignored if ENABLE_NAMESPACES is set) | "" | kube-system,default |
+| ENABLE_NAMESPACES  | Comma-separated allowlist of namespaces (if set, only these namespaces are monitored) | "" | production,staging |
+| DISABLE_NAMESPACES | Comma-separated denylist of namespaces (ignored if ENABLE_NAMESPACES is set) | "" | kube-system,default |
 | NOTIFICATION_URL   | Notification URL (Shoutrrr format)               | ""          | See below           |
 | NOTIFICATION_CLUSTER | Notification cluster name                      | kubernetes  | cluster1, cluster2  |
 | LOG_LEVEL          | Log level (debug, info, warn, error)             | info        | debug, info         |
@@ -64,12 +64,12 @@ kube-watchtower monitors containers in Deployments, DaemonSets, and StatefulSets
 
 - ✅ The container's imagePullPolicy is set to Always
 - ✅ The container has available replicas
-- ✅ The namespace passes the whitelist/blacklist filter (see below)
+- ✅ The namespace passes the allowlist/denylist filter (see below)
 - ✅ ImagePullSecret is set up for the private Docker registry
 
 **Namespace Filtering:**
-- If `ENABLE_NAMESPACES` is set, only namespaces in this list will be monitored (whitelist mode)
-- If `ENABLE_NAMESPACES` is empty, all namespaces except those in `DISABLE_NAMESPACES` will be monitored (blacklist mode)
+- If `ENABLE_NAMESPACES` is set, only namespaces in this list will be monitored (allowlist mode)
+- If `ENABLE_NAMESPACES` is empty, all namespaces except those in `DISABLE_NAMESPACES` will be monitored (denylist mode)
 
 ---
 
@@ -107,11 +107,11 @@ Q: How do I control which namespaces to monitor?
 
 There are two modes:
 
-**Whitelist Mode (recommended for production):**
+**allowlist Mode (recommended for production):**
 Set `ENABLE_NAMESPACES` to only monitor specific namespaces.
 Example: `ENABLE_NAMESPACES=production,staging`
 
-**Blacklist Mode:**
+**denylist Mode:**
 Leave `ENABLE_NAMESPACES` empty and use `DISABLE_NAMESPACES` to exclude specific namespaces.
 Example: `DISABLE_NAMESPACES=kube-system,kube-public,default`
 
