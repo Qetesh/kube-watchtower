@@ -10,9 +10,10 @@ import (
 
 // UpdateResult stores the result of an update operation
 type UpdateResult struct {
-	Image   string
-	Success bool
-	Error   error
+	Namespace string
+	Image     string
+	Success   bool
+	Error     error
 }
 
 // Notifier handles sending notifications
@@ -54,14 +55,15 @@ func extractServiceType(url string) string {
 }
 
 // AddResult adds an update result
-func (n *Notifier) AddResult(image string, success bool, err error) {
+func (n *Notifier) AddResult(namespace, image string, success bool, err error) {
 	if !n.enabled {
 		return
 	}
 	n.results = append(n.results, UpdateResult{
-		Image:   image,
-		Success: success,
-		Error:   err,
+		Namespace: namespace,
+		Image:     image,
+		Success:   success,
+		Error:     err,
 	})
 }
 
@@ -92,14 +94,14 @@ func (n *Notifier) buildSummaryMessage(totalCount int) string {
 	}
 
 	// Separate successful and failed updates
-	var successList []string
-	var failList []string
+	var successList []UpdateResult
+	var failList []UpdateResult
 
 	for _, result := range n.results {
 		if result.Success {
-			successList = append(successList, result.Image)
+			successList = append(successList, result)
 		} else {
-			failList = append(failList, result.Image)
+			failList = append(failList, result)
 		}
 	}
 
@@ -110,8 +112,8 @@ func (n *Notifier) buildSummaryMessage(totalCount int) string {
 		} else {
 			sb.WriteString("✅ Updated successfully:\n")
 		}
-		for _, image := range successList {
-			sb.WriteString(fmt.Sprintf("- %s\n", image))
+		for _, result := range successList {
+			sb.WriteString(fmt.Sprintf("- %s %s\n", result.Namespace, result.Image))
 		}
 		sb.WriteString("\n")
 	}
@@ -119,8 +121,8 @@ func (n *Notifier) buildSummaryMessage(totalCount int) string {
 	// Failed updates
 	if len(failList) > 0 {
 		sb.WriteString("❌ Failed to update:\n")
-		for _, image := range failList {
-			sb.WriteString(fmt.Sprintf("- %s\n", image))
+		for _, result := range failList {
+			sb.WriteString(fmt.Sprintf("- %s %s\n", result.Namespace, result.Image))
 		}
 		sb.WriteString("\n")
 	}
