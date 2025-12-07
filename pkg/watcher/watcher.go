@@ -77,14 +77,25 @@ func (w *Watcher) check(ctx context.Context) error {
 
 	scannedCount := 0
 	failedCount := 0
+	updatedCount := 0
 
-	// Track workloads that need restart (avoid restarting the same workload multiple times)
-	workloadsToRestart := make(map[string]k8s.WorkloadInfo)
-	// Track updated images for each workload
-	updatedImages := make(map[string][]string)
+	// Track workloads already processed in this cycle (restarted or failed)
+	processedWorkloads := make(map[string]bool)
+	// Track workloads that failed to restart
+	failedWorkloads := make(map[string]bool)
 
-	// Phase 1: Check all containers and collect workloads that need restart
+	// Check each workload and restart immediately when update is detected
 	for _, workload := range workloads {
+		// Check if context is cancelled
+		select {
+		case <-ctx.Done():
+			logger.Info("Check interrupted by context cancellation")
+			return ctx.Err()
+		default:
+		}
+
+		key := workloadKey(workload)
+
 		for _, container := range workload.Containers {
 			scannedCount++
 
@@ -99,16 +110,16 @@ func (w *Watcher) check(ctx context.Context) error {
 				credentials = w.getCredentialsForImage(ctx, workload.Namespace, workload.ImagePullSecrets, container.Image)
 			}
 
-		// Check for updates
-		hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, credentials)
-		if err != nil {
-			logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
-			if w.notifier != nil {
-				w.notifier.AddResult(workload.Namespace, container.Image, false, err)
+			// Check for updates
+			hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, credentials)
+			if err != nil {
+				logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
+				if w.notifier != nil {
+					w.notifier.AddResult(workload.Namespace, container.Image, false, err)
+				}
+				failedCount++
+				continue
 			}
-			failedCount++
-			continue
-		}
 
 			logger.Debugf("  Remote Digest: %s", newDigest)
 
@@ -126,48 +137,58 @@ func (w *Watcher) check(ctx context.Context) error {
 				continue
 			}
 
-			// Log new image found
+			// Log new image found (with safe digest display)
 			imageInfo := registry.ParseImage(container.Image)
-			logger.Infof("Found new %s:%s image (%s)", imageInfo.Repository, imageInfo.Tag, newDigest[:12])
-
-			// Mark this workload for restart (deduplication at workload level)
-			key := workloadKey(workload)
-			if _, exists := workloadsToRestart[key]; !exists {
-				workloadsToRestart[key] = workload
+			digestDisplay := newDigest
+			if len(newDigest) > 12 {
+				digestDisplay = newDigest[:12]
 			}
-			updatedImages[key] = append(updatedImages[key], container.Image)
-		}
-	}
+			logger.Infof("Found new %s:%s image (%s)", imageInfo.Repository, imageInfo.Tag, digestDisplay)
 
-	// Phase 2: Restart workloads that have updated images
-	updatedCount := 0
-	for key, workload := range workloadsToRestart {
-		images := updatedImages[key]
-
-		if w.config.DryRun {
-			logger.Infof("[DRY-RUN] Would restart %s %s/%s for %d updated image(s)", workload.Type, workload.Namespace, workload.Name, len(images))
-			updatedCount += len(images)
-			for _, img := range images {
+			// Skip if workload already failed to restart in this cycle
+			if failedWorkloads[key] {
+				logger.Debugf("Workload %s already failed to restart, skipping", key)
+				failedCount++
 				if w.notifier != nil {
-					w.notifier.AddResult(workload.Namespace, img, true, nil)
-				}
-			}
-		} else {
-			if err := w.restartWorkload(ctx, workload); err != nil {
-				logger.Errorf("Failed to restart %s %s/%s: %v", workload.Type, workload.Namespace, workload.Name, err)
-				failedCount += len(images)
-				for _, img := range images {
-					if w.notifier != nil {
-						w.notifier.AddResult(workload.Namespace, img, false, err)
-					}
+					w.notifier.AddResult(workload.Namespace, container.Image, false, fmt.Errorf("workload restart previously failed"))
 				}
 				continue
 			}
 
-			updatedCount += len(images)
-			for _, img := range images {
+			// Skip if workload was already restarted in this cycle
+			if processedWorkloads[key] {
+				logger.Debugf("Workload %s already restarted in this cycle, skipping duplicate restart", key)
+				updatedCount++
 				if w.notifier != nil {
-					w.notifier.AddResult(workload.Namespace, img, true, nil)
+					w.notifier.AddResult(workload.Namespace, container.Image, true, nil)
+				}
+				continue
+			}
+
+			// Restart workload immediately
+			if w.config.DryRun {
+				logger.Infof("[DRY-RUN] Would restart %s %s/%s", workload.Type, workload.Namespace, workload.Name)
+				processedWorkloads[key] = true
+				updatedCount++
+				if w.notifier != nil {
+					w.notifier.AddResult(workload.Namespace, container.Image, true, nil)
+				}
+			} else {
+				if err := w.restartWorkload(ctx, workload); err != nil {
+					logger.Errorf("Failed to restart %s %s/%s: %v", workload.Type, workload.Namespace, workload.Name, err)
+					processedWorkloads[key] = true
+					failedWorkloads[key] = true
+					failedCount++
+					if w.notifier != nil {
+						w.notifier.AddResult(workload.Namespace, container.Image, false, err)
+					}
+					continue
+				}
+
+				processedWorkloads[key] = true
+				updatedCount++
+				if w.notifier != nil {
+					w.notifier.AddResult(workload.Namespace, container.Image, true, nil)
 				}
 			}
 		}

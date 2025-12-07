@@ -23,9 +23,7 @@ import (
 
 // Client Kubernetes client wrapper
 type Client struct {
-	clientset   *kubernetes.Clientset
-	configFlags *genericclioptions.ConfigFlags
-	factory     cmdutil.Factory
+	clientset *kubernetes.Clientset
 }
 
 // NewClient creates a new Kubernetes client
@@ -40,14 +38,8 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("failed to create clientset: %w", err)
 	}
 
-	// Initialize ConfigFlags for kubectl-native operations
-	configFlags := genericclioptions.NewConfigFlags(true)
-	factory := cmdutil.NewFactory(configFlags)
-
 	return &Client{
-		clientset:   clientset,
-		configFlags: configFlags,
-		factory:     factory,
+		clientset: clientset,
 	}, nil
 }
 
@@ -295,6 +287,12 @@ func (c *Client) RolloutRestart(_ context.Context, workloadType WorkloadType, na
 		return fmt.Errorf("unsupported workload type: %s", workloadType)
 	}
 
+	// Create fresh ConfigFlags and Factory for each call to avoid state pollution
+	// This ensures each rollout restart operates independently with the correct namespace
+	configFlags := genericclioptions.NewConfigFlags(true)
+	configFlags.Namespace = &namespace
+	factory := cmdutil.NewFactory(configFlags)
+
 	// Capture output for error messages
 	var stdout, stderr bytes.Buffer
 	streams := genericclioptions.IOStreams{
@@ -304,34 +302,26 @@ func (c *Client) RolloutRestart(_ context.Context, workloadType WorkloadType, na
 	}
 
 	// Create rollout restart command using kubectl's native implementation
-	cmd := rollout.NewCmdRolloutRestart(c.factory, streams)
-	// Inject kubeconfig flags (including namespace) so the command knows the target namespace
-	c.configFlags.AddFlags(cmd.Flags())
-	if c.configFlags.Namespace == nil {
-		c.configFlags.Namespace = new(string)
-	}
-	*c.configFlags.Namespace = namespace
-	// Set the flag value directly to avoid relying on CLI args
-	if err := cmd.Flags().Set("namespace", namespace); err != nil {
-		return fmt.Errorf("failed to set namespace flag: %w", err)
-	}
-
-	cmd.SetArgs([]string{
+	cmd := rollout.NewCmdRolloutRestart(factory, streams)
+	args := []string{
 		fmt.Sprintf("%s/%s", resourceType, name),
-	})
+	}
+	cmd.SetArgs(args)
+
+	logger.Debugf("Executing: kubectl rollout restart %s -n %s", args[0], namespace)
 
 	// Execute the command
 	if err := cmd.Execute(); err != nil {
 		errMsg := strings.TrimSpace(stderr.String())
+		logger.Debugf("Rollout restart failed - stdout: %s, stderr: %s, error: %v",
+			strings.TrimSpace(stdout.String()), errMsg, err)
 		if errMsg != "" {
 			return fmt.Errorf("rollout restart failed: %s", errMsg)
 		}
 		return fmt.Errorf("rollout restart failed: %w", err)
 	}
 
-	if out := strings.TrimSpace(stdout.String()); out != "" {
-		logger.Debugf("Rollout restart output: %s", out)
-	}
+	logger.Debugf("Rollout restart output: %s", strings.TrimSpace(stdout.String()))
 	return nil
 }
 
