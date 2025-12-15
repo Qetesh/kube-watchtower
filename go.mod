@@ -8,7 +8,7 @@ require (
 	go.uber.org/zap v1.27.1
 	golang.org/x/term v0.37.0
 	k8s.io/api v0.34.2
-	k8s.io/apimachinery v0.34.2
+	k8s.io/apimachinery v0.34.3
 	k8s.io/cli-runtime v0.34.2
 	k8s.io/client-go v0.34.2
 	k8s.io/kubectl v0.34.2
