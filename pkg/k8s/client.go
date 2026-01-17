@@ -264,7 +264,13 @@ func (c *Client) fillCurrentDigestsFromSelector(ctx context.Context, namespace s
 	// Fill digest information
 	for i := range containers {
 		if imageID, ok := containerStatusMap[containers[i].Name]; ok {
-			containers[i].CurrentDigest = extractDigestFromImageID(imageID)
+			digest := extractDigestFromImageID(imageID)
+			if digest == "" {
+				logger.Debugf("Container %s has imageID without digest: %s", containers[i].Name, imageID)
+			}
+			containers[i].CurrentDigest = digest
+		} else {
+			logger.Debugf("Container %s not found in pod status", containers[i].Name)
 		}
 	}
 

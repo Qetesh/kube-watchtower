@@ -103,6 +103,13 @@ func (w *Watcher) check(ctx context.Context) error {
 			logger.Debugf("  Image: %s", container.Image)
 			logger.Debugf("  Current Digest: %s", container.CurrentDigest)
 
+			// Skip if current digest is empty (unable to get from pod status)
+			// This prevents unnecessary restarts when digest cannot be determined
+			if container.CurrentDigest == "" {
+				logger.Warnf("Skipping %s/%s/%s: unable to get current digest from pod status", workload.Namespace, workload.Name, container.Name)
+				continue
+			}
+
 			// Get registry credentials if imagePullSecrets are defined
 			var credentials *registry.RegistryCredentials
 			if len(workload.ImagePullSecrets) > 0 {
