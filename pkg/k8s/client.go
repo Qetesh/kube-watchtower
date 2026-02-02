@@ -216,15 +216,21 @@ func extractImageTag(image string) string {
 // extractDigestFromImageID extracts digest from imageID
 // imageID format: docker-pullable://nginx@sha256:abc123...
 // or: docker.io/library/nginx@sha256:abc123...
+// or: sha256:abc123... (direct digest format)
 func extractDigestFromImageID(imageID string) string {
 	// Find @ symbol
 	idx := strings.Index(imageID, "@")
-	if idx == -1 {
-		return ""
+	if idx != -1 {
+		// Return part after @ (sha256:...)
+		return imageID[idx+1:]
 	}
 
-	// Return part after @ (sha256:...)
-	return imageID[idx+1:]
+	// Handle direct digest format (sha256:xxx)
+	if strings.HasPrefix(imageID, "sha256:") {
+		return imageID
+	}
+
+	return ""
 }
 
 // fillCurrentDigestsFromSelector fills container current digest information using label selector
