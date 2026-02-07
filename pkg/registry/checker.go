@@ -27,23 +27,30 @@ type ImageInfo struct {
 }
 
 // ParseImage parses image string into ImageInfo
+// Correctly handles registry ports (e.g., registry.example.com:5000/myimage:latest)
 func ParseImage(image string) *ImageInfo {
 	info := &ImageInfo{
 		Tag: "latest",
 	}
 
-	// Separate digest
-	parts := strings.Split(image, "@")
-	if len(parts) > 1 {
-		info.Digest = parts[1]
-		image = parts[0]
+	// Separate digest (e.g., image@sha256:abc123)
+	if idx := strings.Index(image, "@"); idx != -1 {
+		info.Digest = image[idx+1:]
+		image = image[:idx]
 	}
 
-	// Separate tag
-	parts = strings.Split(image, ":")
-	info.Repository = parts[0]
-	if len(parts) > 1 {
-		info.Tag = parts[1]
+	// Find tag: the last ":" that appears after the last "/"
+	// This correctly distinguishes registry port from image tag
+	// e.g., "registry.example.com:5000/myimage:latest" → tag is "latest"
+	// e.g., "registry.example.com:5000/myimage" → no tag, default to "latest"
+	lastSlash := strings.LastIndex(image, "/")
+	lastColon := strings.LastIndex(image, ":")
+
+	if lastColon > lastSlash {
+		info.Repository = image[:lastColon]
+		info.Tag = image[lastColon+1:]
+	} else {
+		info.Repository = image
 	}
 
 	return info
@@ -56,20 +63,16 @@ type RegistryCredentials struct {
 	Password string
 }
 
-// CheckForUpdate checks if image has an update
-// Returns: hasUpdate (whether there is an update), remoteDigest (remote image digest), error
-func (ic *ImageChecker) CheckForUpdate(ctx context.Context, currentImage string, credentials *RegistryCredentials) (bool, string, error) {
-	imageInfo := ParseImage(currentImage)
+// GetRemoteDigest fetches the current remote digest for an image from the registry
+func (ic *ImageChecker) GetRemoteDigest(ctx context.Context, image string, credentials *RegistryCredentials) (string, error) {
+	imageInfo := ParseImage(image)
 
-	// Get remote image digest
 	remoteDigest, err := ic.getRemoteDigest(ctx, imageInfo, credentials)
 	if err != nil {
-		return false, "", fmt.Errorf("failed to get remote digest: %w", err)
+		return "", fmt.Errorf("failed to get remote digest: %w", err)
 	}
 
-	// Return remote digest, let caller decide whether to update
-	// hasUpdate is always true here, specific comparison logic is in watcher
-	return true, remoteDigest, nil
+	return remoteDigest, nil
 }
 
 // getRemoteDigest gets remote image digest

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -26,9 +27,15 @@ func main() {
 	// Print version
 	logger.Infof("kube-watchtower %s", version)
 
-	// Debug configuration
-	logger.Infof("Configuration loaded: DisableNamespaces=%v",
-		cfg.DisableNamespaces)
+	// Log configuration summary
+	if cfg.DryRun {
+		logger.Info("Dry-run mode enabled")
+	}
+	if len(cfg.EnableNamespaces) > 0 {
+		logger.Infof("Watching namespaces (whitelist): %v", cfg.EnableNamespaces)
+	} else if len(cfg.DisableNamespaces) > 0 {
+		logger.Infof("Excluded namespaces (blacklist): %v", cfg.DisableNamespaces)
+	}
 
 	// Create watcher
 	w, err := watcher.NewWatcher(cfg)
@@ -57,7 +64,7 @@ func main() {
 	}()
 
 	// Run watcher
-	if err := w.Run(ctx); err != nil && err != context.Canceled {
+	if err := w.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		cancel()
 		signal.Stop(sigCh)
 		logger.Fatalf("Watcher failed: %v", err)
