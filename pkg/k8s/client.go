@@ -198,16 +198,20 @@ func (c *Client) processWorkload(ctx context.Context, workloadType WorkloadType,
 }
 
 // extractImageTag extracts tag from image string
+// Correctly handles registry ports (e.g., registry.example.com:5000/myimage:latest)
 func extractImageTag(image string) string {
 	// Remove digest part if exists
 	if idx := strings.Index(image, "@"); idx != -1 {
 		image = image[:idx]
 	}
 
-	// Extract tag
-	parts := strings.Split(image, ":")
-	if len(parts) > 1 {
-		return parts[len(parts)-1]
+	// Find tag: the last ":" that appears after the last "/"
+	// This correctly distinguishes registry port from image tag
+	lastSlash := strings.LastIndex(image, "/")
+	lastColon := strings.LastIndex(image, ":")
+
+	if lastColon > lastSlash {
+		return image[lastColon+1:]
 	}
 
 	return "latest" // Default tag

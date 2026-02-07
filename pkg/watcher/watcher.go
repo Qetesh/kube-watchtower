@@ -45,12 +45,7 @@ func NewWatcher(cfg *config.Config) (*Watcher, error) {
 
 // Run runs the watcher
 func (w *Watcher) Run(ctx context.Context) error {
-	// Run initial check
-	if err := w.check(ctx); err != nil {
-		logger.Errorf("Initial check failed: %v", err)
-	}
-
-	return nil
+	return w.check(ctx)
 }
 
 // workloadKey generates a unique key for a workload
@@ -117,8 +112,8 @@ func (w *Watcher) check(ctx context.Context) error {
 				credentials = w.getCredentialsForImage(ctx, workload.Namespace, workload.ImagePullSecrets, container.Image)
 			}
 
-			// Check for updates
-			hasUpdate, newDigest, err := w.imageChecker.CheckForUpdate(ctx, container.Image, credentials)
+			// Get remote digest
+			newDigest, err := w.imageChecker.GetRemoteDigest(ctx, container.Image, credentials)
 			if err != nil {
 				logger.Errorf("Failed to check image update for %s/%s/%s: %v", workload.Namespace, workload.Name, container.Name, err)
 				if w.notifier != nil {
@@ -130,17 +125,9 @@ func (w *Watcher) check(ctx context.Context) error {
 
 			logger.Debugf("  Remote Digest: %s", newDigest)
 
-			// Compare digests
-			if container.CurrentDigest != "" {
-				if container.CurrentDigest == newDigest {
-					logger.Debugf("No update needed: %s/%s/%s (digest matches)", workload.Namespace, workload.Name, container.Name)
-					continue
-				}
-				hasUpdate = true
-			}
-
-			if !hasUpdate {
-				logger.Debugf("No update needed: %s/%s/%s", workload.Namespace, workload.Name, container.Name)
+			// Compare digests — skip if unchanged
+			if container.CurrentDigest == newDigest {
+				logger.Debugf("No update needed: %s/%s/%s (digest matches)", workload.Namespace, workload.Name, container.Name)
 				continue
 			}
 
