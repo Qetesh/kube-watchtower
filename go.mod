@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/containrrr/shoutrrr v0.8.0
 	github.com/google/go-containerregistry v0.21.5
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	golang.org/x/term v0.45.0
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1
